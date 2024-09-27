@@ -1,0 +1,11 @@
+<div class="upload-container">
+  <h2>Upload Your File</h2>
+  <form enctype="multipart/form-data">
+    <div class="input-group">
+      <label for="file">Select a file:</label>
+      <input type="file" (change)="onFileSelected($event)" />
+    </div>
+    <button type="button" class="upload-button" [disabled]="!selectedFile" (click)="onSubmit()">Upload</button> <!-- Type="button" olarak ayarlandı -->
+  </form>
+  <button type="button" (click)="logout()" class="logout-button">Logout</button>
+</div>

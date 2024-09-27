@@ -1,0 +1,51 @@
+/* Background and Container */
+.hello-container {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    background: linear-gradient(135deg, #74ebd5, #ACB6E5);
+    text-align: center;
+  }
+  
+  /* Glowing Heading */
+  .glowing-text {
+    font-size: 4rem;
+    font-weight: bold;
+    color: white;
+    text-transform: uppercase;
+    letter-spacing: 5px;
+    position: relative;
+    animation: neon 1.5s ease-in-out infinite alternate;
+  }
+  
+  @keyframes neon {
+    from {
+      text-shadow: 0 0 10px #fff, 0 0 20px #ff1177, 0 0 30px #ff1177, 0 0 40px #ff1177, 0 0 50px #ff1177;
+    }
+    to {
+      text-shadow: 0 0 20px #fff, 0 0 30px #ff1177, 0 0 40px #ff1177, 0 0 50px #ff1177, 0 0 60px #ff1177;
+    }
+  }
+  
+  /* Fancy Button */
+  .fancy-button {
+    margin-top: 20px;
+    padding: 15px 30px;
+    font-size: 1.2rem;
+    color: white;
+    background-color: #ff1177;
+    border: none;
+    border-radius: 30px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 8px 15px rgba(255, 17, 119, 0.4);
+  }
+  
+  .fancy-button:hover {
+    background-color: #ff4094;
+    box-shadow: 0 15px 20px rgba(255, 17, 119, 0.6);
+    transform: translateY(-5px);
+  }
+  
