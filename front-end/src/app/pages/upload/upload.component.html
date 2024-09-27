@@ -1,11 +1,25 @@
+<div class="background">
+  <!-- Random Shapes for Visual Interest -->
+  <div class="shape shape1"></div>
+  <div class="shape shape2"></div>
+  <div class="shape shape3"></div>
+</div>
+
 <div class="upload-container">
   <h2>Upload Your File</h2>
   <form enctype="multipart/form-data">
     <div class="input-group">
-      <label for="file">Select a file:</label>
-      <input type="file" (change)="onFileSelected($event)" />
+      <label for="file-input" class="custom-file-upload">
+        Choose File
+      </label>
+      <input type="file" id="file-input" (change)="onFileSelected($event)" />
+      <span id="file-name">No file chosen</span>
+      
     </div>
-    <button type="button" class="upload-button" [disabled]="!selectedFile" (click)="onSubmit()">Upload</button> <!-- Type="button" olarak ayarlandı -->
+    <button type="button" class="upload-button" [disabled]="!selectedFile" (click)="onSubmit()">Upload</button>
   </form>
+  <button type="button" class="documents-button" (click)="goToMyDocuments()">My Documents</button>
+
   <button type="button" (click)="logout()" class="logout-button">Logout</button>
 </div>
+

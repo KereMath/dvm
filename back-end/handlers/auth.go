@@ -19,10 +19,11 @@ import (
 var store = sessions.NewCookieStore([]byte("secret-key"))
 var jwtKey = []byte("your-secret-key")
 
-func generateJWT(username string) (string, error) {
+func generateJWT(userID, username string) (string, error) {
 	claims := jwt.MapClaims{}
 	claims["authorized"] = true
 	claims["username"] = username
+	claims["user_id"] = userID // User ID'yi JWT'ye ekliyoruz
 	claims["exp"] = time.Now().Add(time.Hour * 1).Unix() // Token 1 saat geçerli olacak
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -39,41 +40,41 @@ func HelloHandler(c *gin.Context) {
 
 // RegisterHandler handles user registration
 func RegisterHandler(userCollection *mongo.Collection) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		var user models.User
-		if err := c.ShouldBindJSON(&user); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
-			return
-		}
+    return func(c *gin.Context) {
+        var user models.User
+        if err := c.ShouldBindJSON(&user); err != nil {
+            c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
+            return
+        }
 
-		// Check if the username already exists
-		var existingUser models.User
-		err := userCollection.FindOne(context.Background(), bson.M{"username": user.Username}).Decode(&existingUser)
-		if err == nil {
-			c.JSON(http.StatusConflict, gin.H{"error": "Username already exists"})
-			return
-		}
+        // Check if the username already exists
+        var existingUser models.User
+        err := userCollection.FindOne(context.Background(), bson.M{"username": user.Username}).Decode(&existingUser)
+        if err == nil {
+            c.JSON(http.StatusConflict, gin.H{"error": "Username already exists"})
+            return
+        }
 
-		// Hash the password before saving it
-		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not hash password"})
-			return
-		}
+        // Hash the password before saving it
+        hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
+        if err != nil {
+            c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not hash password"})
+            return
+        }
 
-		// Insert the new user into the database
-		_, err = userCollection.InsertOne(context.Background(), bson.M{
-			"username": user.Username,
-			"password": string(hashedPassword),
-		})
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not register user"})
-			return
-		}
+        user.Password = string(hashedPassword)
 
-		c.JSON(http.StatusOK, gin.H{"message": "User registered successfully"})
-	}
+        // Insert the new user into the database (MongoDB otomatik ObjectId atayacak)
+        _, err = userCollection.InsertOne(context.Background(), user)
+        if err != nil {
+            c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not register user"})
+            return
+        }
+
+        c.JSON(http.StatusOK, gin.H{"message": "User registered successfully"})
+    }
 }
+
 
 func LoginHandler(userCollection *mongo.Collection) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -97,16 +98,22 @@ func LoginHandler(userCollection *mongo.Collection) gin.HandlerFunc {
 			return
 		}
 
-		// Token oluştur
-		token, err := generateJWT(user.Username)
+		// Token oluştur (hem userID hem de username sağlıyoruz)
+		token, err := generateJWT(storedUser.ID.Hex(), user.Username)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not generate token"})
 			return
 		}
 
-		c.JSON(http.StatusOK, gin.H{"message": "Login successful", "token": token})
+		// Login başarılı, kullanıcı ObjectId'sini ve token'ı döndürüyoruz
+		c.JSON(http.StatusOK, gin.H{
+			"message":  "Login successful",
+			"token":    token,
+			"user_id":  storedUser.ID.Hex(),
+		})
 	}
 }
+
 func LogoutHandler() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Tarayıcıdaki JWT token'ı client-side'da silinmesi gerekiyor

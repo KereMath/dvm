@@ -33,6 +33,7 @@ func main() {
 	r.POST("/login", handlers.LoginHandler(userCollection))
 	r.POST("/upload", handlers.UploadHandler())
     r.GET("/validate-token", middleware.ValidateToken()) // Token doğrulama rotası
+	r.GET("/documents", handlers.GetDocumentsHandler())
 
 	// Start the server
 	r.Run(":8080")

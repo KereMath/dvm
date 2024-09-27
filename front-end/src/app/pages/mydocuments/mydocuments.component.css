@@ -1,0 +1,173 @@
+
+/* Gradient animasyonu */
+@keyframes gradientShift {
+  0% {
+    background: linear-gradient(135deg,green, yellow,navy);
+  }
+  50% {
+    background: linear-gradient(135deg,green, yellow,navy);
+  }
+  100% {
+    background: linear-gradient(135deg,green, yellow,navy);
+  }
+}
+
+/* Hareket eden şekiller */
+.shape {
+  position: absolute;
+  width: 150px;
+  height: 150px;
+  background-color: pink;
+  border-radius: 50%;
+  animation: moveShape 20s infinite ease-in-out;
+  backdrop-filter: blur(10px);
+  margin-top:80px;
+  margin-left:40px;
+}
+
+
+.shape:nth-child(2) {
+  width: 200px;
+  height: 200px;
+  top: 40%;
+  left: 70%;
+  background-color: rgb(0, 225, 255);
+  animation-duration: 15s;
+}
+
+.shape:nth-child(3) {
+  width: 100px;
+  height: 100px;
+  bottom: 20%;
+  left: 40%;
+  background-color: orange;
+  animation-duration: 25s;
+}
+
+@keyframes moveShape {
+  0%, 100% {
+    transform: translate(0, 0);
+  }
+  50% {
+    transform: translate(100px, -100px) rotate(360deg);
+  }
+}
+
+/* Belgeler konteyneri */
+.documents-container {
+  max-width: 800px;
+  margin: 50px auto;
+  text-align: center;
+  background: linear-gradient(135deg, #ff0066, #00ccff);
+  padding: 40px;
+  border-radius: 15px;
+  box-shadow: 0 0 25px rgba(0, 0, 0, 0.3);
+}
+
+
+
+/* Fade-in animasyonu */
+@keyframes fadeIn {
+  0% {
+    opacity: 0;
+    transform: rotateY(-90deg);
+  }
+  100% {
+    opacity: 1;
+    transform: rotateY(0deg);
+  }
+}
+
+/* Belgeler için başlık */
+h2 {
+  text-align: center;
+  font-size: 2.5rem;
+  margin-bottom: 20px;
+  position: relative;
+  color: #fff;
+  animation: fadeIn 1.5s ease-in-out forwards;
+}
+
+h2::after {
+  content: '';
+  display: block;
+  width: 80px;
+  height: 5px;
+  background-color: #ff69b4;
+  margin: 10px auto;
+  border-radius: 5px;
+  animation: fadeIn 1.5s ease-in-out forwards;
+}
+
+/* Belgeler listesi */
+ul {
+  list-style-type: none;
+  padding: 0;
+  margin: 0;
+}
+
+li {
+  padding: 15px;
+  margin-bottom: 15px;
+  background-color: rgba(255, 255, 255, 0.9);
+  border-radius: 15px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+  transition: transform 0.3s ease, background-color 0.3s ease;
+  font-size: 1.2rem;
+  color: #333;
+  animation: glowEffect 2s ease-in-out infinite;
+}
+
+@keyframes glowEffect {
+  0% {
+    box-shadow: 0 0 10px #ff69b4;
+  }
+  50% {
+    box-shadow: 0 0 30px #ff69b4;
+  }
+  100% {
+    box-shadow: 0 0 10px #ff69b4;
+  }
+}
+
+li:hover {
+  transform: translateY(-10px);
+  background-color: #ff69b4;
+  color: white;
+}
+
+/* Belgelerin butonları */
+button {
+  background-color: #ff69b4;
+  color: white;
+  border: none;
+  border-radius: 50px;
+  padding: 10px 20px;
+  font-size: 1rem;
+  cursor: pointer;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s ease;
+}
+
+button:hover {
+  background-color: #ff1493;
+  transform: translateY(-3px);
+}
+
+button:focus {
+  outline: none;
+}
+.background1 {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg,navy,green,yellow);
+  background-size: 400% 400%;
+  z-index: -1;
+  animation: gradientShift 10s ease infinite;
+}

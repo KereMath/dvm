@@ -4,6 +4,7 @@ import { LoginComponent } from './pages/login/login.component';
 import { RegisterComponent } from './pages/register/register.component';
 import { UploadComponent } from './pages/upload/upload.component';
 import { AuthGuard } from './guards/auth.guard'; // Guard'ı import ediyoruz
+import { MyDocumentsComponent } from './pages/mydocuments/mydocuments.component';
 
 export const routes: Routes = [
   { path: 'hello', component: HelloComponent },
@@ -13,6 +14,11 @@ export const routes: Routes = [
   {
     path: 'upload',
     component: UploadComponent,
+    canActivate: [AuthGuard], // Bu route için AuthGuard ekliyoruz
+  },
+  {
+    path: 'mydocuments',
+    component: MyDocumentsComponent ,
     canActivate: [AuthGuard], // Bu route için AuthGuard ekliyoruz
   },
 ];
