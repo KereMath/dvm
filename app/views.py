@@ -42,13 +42,37 @@ def fake_deletion(request):
     return JsonResponse({"status": "error", "message": "Invalid request method"})
 
 def introduce_missing_values(data, missing_rate=0.1):
-    np.random.seed(42)
+    """
+    Veri setindeki sayısal sütunlara belirli bir oranda eksik değer (NaN) ekler.
+
+    Parameters:
+        data (pd.DataFrame): Girdi veri seti.
+        missing_rate (float): Eksik değer oranı (0 ile 1 arasında).
+
+    Returns:
+        pd.DataFrame: Eksik değerlerle güncellenmiş veri seti.
+    """
+    import numpy as np
+
+    np.random.seed(42)  # Rastgelelik için sabit tohum
+
+    # Yalnızca sayısal sütunları seç
+    numeric_columns = data.select_dtypes(include=[np.number]).columns
+
+    # Sayısal sütunlar yoksa orijinal veri setini döndür
+    if numeric_columns.empty:
+        print("No numeric columns found in the dataset.")
+        return data
+
+    # Veri setinin bir kopyasını oluştur
     data = data.copy()
-    mask = np.random.rand(*data.shape) < missing_rate
-    data[mask] = np.nan
+
+    # Eksik değer maskesi oluştur ve sadece sayısal sütunlara uygula
+    for col in numeric_columns:
+        mask = np.random.rand(len(data[col])) < missing_rate
+        data.loc[mask, col] = np.nan
+
     return data
-
-
 
 
 

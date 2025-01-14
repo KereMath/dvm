@@ -89,10 +89,22 @@ func callDjangoAPIimp(inputPath, outputPath string, answer string) error {
 }
 
 func deleteAllTempFiles(logFilePath string) error {
+	// Log dosyasının varlığını kontrol et
+	if _, err := os.Stat(logFilePath); os.IsNotExist(err) {
+		log.Printf("Log file does not exist, skipping delete operation: %s", logFilePath)
+		return nil
+	}
+
 	// Log dosyasını oku
 	data, err := ioutil.ReadFile(logFilePath)
 	if err != nil {
 		return fmt.Errorf("failed to read log file: %v", err)
+	}
+
+	// Eğer dosya boşsa, işlem yapmadan dön
+	if len(data) == 0 {
+		log.Printf("Log file is empty, nothing to delete: %s", logFilePath)
+		return nil
 	}
 
 	// Tüm temp dosya path'lerini bul ve sil
@@ -108,8 +120,12 @@ func deleteAllTempFiles(logFilePath string) error {
 		tempFilePath := strings.TrimSpace(parts[3]) // Temp dosya yolunu al
 
 		// Dosyayı sil
-		if err := os.Remove(tempFilePath); err != nil && !os.IsNotExist(err) {
-			log.Printf("Failed to delete temp file: %s, error: %v", tempFilePath, err)
+		if err := os.Remove(tempFilePath); err != nil {
+			if os.IsNotExist(err) {
+				log.Printf("Temp file already deleted or does not exist: %s", tempFilePath)
+			} else {
+				log.Printf("Failed to delete temp file: %s, error: %v", tempFilePath, err)
+			}
 		} else {
 			log.Printf("Deleted temp file: %s", tempFilePath)
 		}
@@ -121,6 +137,7 @@ func deleteAllTempFiles(logFilePath string) error {
 		return fmt.Errorf("failed to clear log file: %v", err)
 	}
 
+	log.Printf("Successfully cleared log file: %s", logFilePath)
 	return nil
 }
 
