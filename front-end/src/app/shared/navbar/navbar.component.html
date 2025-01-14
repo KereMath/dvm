@@ -1,13 +1,20 @@
 <nav class="navbar">
   <ul>
+    <!-- Home her zaman görünür -->
     <li><a routerLink="/hello">Home</a></li>
-    
-    <!-- Login butonu sadece token yoksa görünsün -->
+
+    <!-- Kullanıcı giriş yapmamışsa Login ve Register göster -->
     <li *ngIf="!isLoggedIn"><a routerLink="/login">Login</a></li>
     <li *ngIf="!isLoggedIn"><a routerLink="/register">Register</a></li>
 
-    <!-- Token varsa diğer butonlar görünsün -->
+    <!-- Kullanıcı giriş yapmışsa diğer öğeleri göster -->
     <li *ngIf="isLoggedIn"><a routerLink="/upload">Upload</a></li>
     <li *ngIf="isLoggedIn"><a routerLink="/mydocuments">Documents</a></li>
+
+    <!-- Kullanıcı giriş yapmışsa kullanıcı adını ve logout düğmesini göster -->
+    <li *ngIf="isLoggedIn" class="username-display">
+      Welcome, {{ username }}
+      <button (click)="logout()" class="logout-btn">Logout</button>
+    </li>
   </ul>
 </nav>

@@ -72,10 +72,5 @@ export class UploadComponent {
   goToMyDocuments(): void {
     this.router.navigate(['/mydocuments']);
   }
-  
-  // Logout fonksiyonu
-  logout(): void {
-    localStorage.removeItem('token'); // Local storage'daki token'ı sil
-    this.router.navigate(['/login']); // Kullanıcıyı login sayfasına yönlendir
-  }
+
 }

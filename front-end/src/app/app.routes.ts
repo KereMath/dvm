@@ -3,13 +3,18 @@ import { HelloComponent } from './pages/hello/hello.component';
 import { LoginComponent } from './pages/login/login.component';
 import { RegisterComponent } from './pages/register/register.component';
 import { UploadComponent } from './pages/upload/upload.component';
-import { AuthGuard } from './guards/auth.guard'; // Guard'ı import ediyoruz
+import { AuthGuard } from './guards/auth.guard'; // AuthGuard
 import { MyDocumentsComponent } from './pages/mydocuments/mydocuments.component';
 import { SingleDocumentComponent } from './pages/single-document/single-document.component';
 import { StatisticianComponent } from './pages/statistician/statistician.component';
+import { RedirectGuard } from './guards/redirect.guard'; // RedirectGuard
 
 export const routes: Routes = [
-  { path: 'hello', component: HelloComponent },
+  {
+    path: 'hello',
+    component: HelloComponent,
+    canActivate: [RedirectGuard], // Giriş durumuna göre yönlendirme yapılır
+  },
   { path: 'login', component: LoginComponent },
   { path: '', redirectTo: '/hello', pathMatch: 'full' },
   { path: 'register', component: RegisterComponent },
@@ -20,18 +25,18 @@ export const routes: Routes = [
   },
   {
     path: 'mydocuments',
-    component: MyDocumentsComponent ,
+    component: MyDocumentsComponent,
     canActivate: [AuthGuard], // Bu route için AuthGuard ekliyoruz
   },
   {
     path: 'singleDoc/:docID',
-    component: SingleDocumentComponent ,
+    component: SingleDocumentComponent,
     canActivate: [AuthGuard], // Bu route için AuthGuard ekliyoruz
   },
   {
     path: 'statistician',
-    component: StatisticianComponent,  // Make sure you have this component created
-    canActivate: [AuthGuard], // Add AuthGuard if needed
+    component: StatisticianComponent,
+    canActivate: [AuthGuard], // Bu route için AuthGuard ekliyoruz
   },
-  
 ];
+

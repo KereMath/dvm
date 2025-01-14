@@ -36,6 +36,7 @@ func main() {
 	r.GET("/documents/:docID", handlers.GetSingleDocumentHandler(documentCollection)) // Yeni route
     r.GET("/document-content/:docID", handlers.DocumentContentHandler(documentCollection)) // Document content route
 	r.POST("/process-question", handlers.PipelineManagerHandler)
+	r.GET("/user", handlers.GetUserHandler(userCollection)) // Kullanıcı bilgisi rotası
 
 	// Start the server
 	r.Run(":8080")

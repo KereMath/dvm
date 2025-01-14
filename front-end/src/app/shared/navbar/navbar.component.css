@@ -24,4 +24,28 @@
   .navbar li a:hover {
     text-decoration: underline;
   }
+
+  
+  .navbar ul {
+    display: flex;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  
+  .navbar li {
+    margin-right: 20px;
+  }
+  
+  .navbar a {
+    text-decoration: none;
+    color: #333;
+    font-size: 16px;
+  }
+  
+  .username-display {
+    font-weight: bold;
+    color:white;
+    margin-left: auto;
+  }
   
