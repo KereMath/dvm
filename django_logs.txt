@@ -1,0 +1,28 @@
+Watching for file changes with StatReloader
+[30/Jan/2025 17:15:40] "OPTIONS /api/public_chat/create/ HTTP/1.1" 200 0
+[30/Jan/2025 17:15:40] "POST /api/public_chat/create/ HTTP/1.1" 200 23
+[30/Jan/2025 17:15:41] "OPTIONS /api/public_chat/ask/ HTTP/1.1" 200 0
+[30/Jan/2025 17:15:45] "POST /api/public_chat/ask/ HTTP/1.1" 200 139
+[30/Jan/2025 17:15:51] "POST /api/public_chat/ask/ HTTP/1.1" 200 292
+[30/Jan/2025 17:15:55] "POST /api/public_chat/ask/ HTTP/1.1" 200 32
+[30/Jan/2025 17:16:03] "POST /api/public_chat/ask/ HTTP/1.1" 200 32
+[30/Jan/2025 17:35:28] "GET / HTTP/1.1" 200 26525
+[30/Jan/2025 17:35:28] "GET /api/chats/ HTTP/1.1" 200 277
+Not Found: /api/chats/undefined/history/
+[30/Jan/2025 17:35:28] "GET /api/chats/undefined/history/ HTTP/1.1" 404 28
+Not Found: /favicon.ico
+[30/Jan/2025 17:35:28] "GET /favicon.ico HTTP/1.1" 404 4548
+[30/Jan/2025 17:35:31] "POST /api/chat/ HTTP/1.1" 200 46
+[30/Jan/2025 18:29:34] "OPTIONS /api/public_chat/create/ HTTP/1.1" 200 0
+[30/Jan/2025 18:29:34] "POST /api/public_chat/create/ HTTP/1.1" 200 23
+[30/Jan/2025 18:29:36] "OPTIONS /api/public_chat/ask/ HTTP/1.1" 200 0
+[30/Jan/2025 18:29:37] "POST /api/public_chat/ask/ HTTP/1.1" 200 157
+[30/Jan/2025 18:30:36] "GET / HTTP/1.1" 200 26525
+[30/Jan/2025 18:30:36] "GET /api/chats/ HTTP/1.1" 200 277
+Not Found: /api/chats/undefined/history/
+[30/Jan/2025 18:30:36] "GET /api/chats/undefined/history/ HTTP/1.1" 404 28
+[30/Jan/2025 18:30:38] "GET / HTTP/1.1" 200 26525
+Not Found: /api/chats/undefined/history/
+[30/Jan/2025 18:30:38] "GET /api/chats/ HTTP/1.1" 200 277
+[30/Jan/2025 18:30:38] "GET /api/chats/undefined/history/ HTTP/1.1" 404 28
+[30/Jan/2025 18:30:43] "POST /api/chat/ HTTP/1.1" 200 47
