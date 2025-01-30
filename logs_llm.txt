@@ -1,0 +1,17 @@
+[2025-01-30 12:07:37] Server 8001 portunda başlatıldı.
+[2025-01-30 12:11:17] Server 8002 portunda başlatıldı.
+[2025-01-30 12:14:17] Server 8008 portunda başlatıldı.
+[2025-01-30 12:14:25] Django server durduruldu.
+[2025-01-30 12:14:37] UYARI: Durdurulacak aktif bir server yok!
+[2025-01-30 12:16:06] Server 8015 portunda başlatıldı.
+[2025-01-30 12:18:37] Server 8001 portunda başlatıldı.
+[2025-01-30 12:23:33] Server 8015 portunda başlatıldı.
+[2025-01-30 12:23:46] Server 8018 portunda başlatıldı.
+[2025-01-30 12:23:54] Server 8018 portunda başlatıldı.
+[2025-01-30 12:25:38] Server 8012 portunda başlatıldı.
+[2025-01-30 12:28:29] Server 8021 portunda başlatıldı.
+[2025-01-30 12:28:46] Server 8021 portunda başlatıldı.
+[2025-01-30 12:30:00] Server başlatılamadı! Hata: name 'python_executable' is not defined
+[2025-01-30 12:31:14] Server 8031 portunda başlatıldı.
+[2025-01-30 12:35:26] Server 8001 portunda başlatıldı.
+[2025-01-30 17:14:52] Server 8015 portunda başlatıldı.
