@@ -1,19 +1,23 @@
 package handlers
 
 import (
+    "context"
     "fmt"
-    "io/ioutil"
+    "io"
     "net/http"
-    "path/filepath"
+    "strings"
+
     "github.com/gin-gonic/gin"
+    "github.com/minio/minio-go/v7"
+    "github.com/minio/minio-go/v7/pkg/credentials"
     "go.mongodb.org/mongo-driver/bson"
     "go.mongodb.org/mongo-driver/bson/primitive"
     "go.mongodb.org/mongo-driver/mongo"
+    "your-backend-module/config"  // MinIO yapılandırmasını import ettik
     "your-backend-module/models"
-    "context"
 )
 
-// DocumentContentHandler dosyanın içeriğini döner
+// DocumentContentHandler MinIO'dan dosyayı alıp döndürür
 func DocumentContentHandler(documentCollection *mongo.Collection) gin.HandlerFunc {
     return func(c *gin.Context) {
         documentID := c.Param("docID") // Parametreden docID alınıyor
@@ -36,25 +40,58 @@ func DocumentContentHandler(documentCollection *mongo.Collection) gin.HandlerFun
             return
         }
 
-        // Dosya yolunu oluşturma
-        documentPath := document.Path // Database'deki path'i alıyoruz
-        fmt.Println("Document Path:", documentPath)
-
-        // Dosyanın içeriğini okuma
-        fileContent, err := ioutil.ReadFile(documentPath)
+        // MinIO bağlantısını oluştur
+        minioClient, err := minio.New(config.MinioEndpoint, &minio.Options{
+            Creds:  credentials.NewStaticV4(config.MinioAccessKey, config.MinioSecretKey, ""),
+            Secure: false, // HTTP kullanıyorsan false, HTTPS kullanıyorsan true
+        })
         if err != nil {
-            fmt.Println("Error reading file:", err)
-            c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not read file"})
+            fmt.Println("Failed to connect to MinIO:", err)
+            c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not connect to MinIO"})
             return
         }
 
-        // Dosya türüne göre geri döndürme
-        if filepath.Ext(documentPath) == ".csv" {
-            c.Data(http.StatusOK, "text/csv", fileContent)
-        } else if filepath.Ext(documentPath) == ".xls" || filepath.Ext(documentPath) == ".xlsx" {
-            c.Data(http.StatusOK, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileContent)
-        } else {
-            c.JSON(http.StatusUnsupportedMediaType, gin.H{"error": "Unsupported file type"})
+        // MinIO'daki object path'i belirle
+        objectURL := document.Path
+        fmt.Println("MinIO Object URL:", objectURL)
+
+        // MinIO içindeki dosyanın gerçek path'ini çıkar
+        parts := strings.Split(objectURL, "/")
+        if len(parts) < 5 {
+            fmt.Println("Invalid MinIO path format:", objectURL)
+            c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid MinIO file path format"})
+            return
         }
+        objectName := strings.Join(parts[4:], "/") // `mybucket/` sonrası path
+        fmt.Printf("Extracted Object Name: %s\n", objectName)
+
+        // MinIO'dan dosyayı getir
+        obj, err := minioClient.GetObject(c, config.BucketName, objectName, minio.GetObjectOptions{})
+        if err != nil {
+            fmt.Println("Error fetching file from MinIO:", err)
+            c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not fetch file from MinIO"})
+            return
+        }
+        defer obj.Close()
+
+        // Dosya içeriğini oku
+        fileContent, err := io.ReadAll(obj)
+        if err != nil {
+            fmt.Println("Error reading file content:", err)
+            c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not read file content"})
+            return
+        }
+
+        // Dosya uzantısını al ve uygun Content-Type belirle
+        var contentType string
+        if strings.HasSuffix(objectName, ".csv") {
+            contentType = "text/csv"
+        } else if strings.HasSuffix(objectName, ".xls") || strings.HasSuffix(objectName, ".xlsx") {
+            contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        } else {
+            contentType = "application/octet-stream"
+        }
+
+        c.Data(http.StatusOK, contentType, fileContent)
     }
 }

@@ -1,5 +1,5 @@
 import { Component, OnInit } from '@angular/core';
-import { ActivatedRoute,Router } from '@angular/router';  
+import { ActivatedRoute, Router } from '@angular/router';  
 import { HttpClient } from '@angular/common/http';
 import { CommonModule } from '@angular/common';  
 import * as Papa from 'papaparse';  
@@ -10,26 +10,53 @@ import * as XLSX from 'xlsx';
   templateUrl: './single-document.component.html',
   styleUrls: ['./single-document.component.css'],
   standalone: true,
-  imports: [CommonModule]  
+  imports: [CommonModule]
 })
 export class SingleDocumentComponent implements OnInit {
   documentId: string = '';  
   documentData: any = {};   
   tableData: any[][] = [];  
-  displayedData: any[][] = []; // To store paginated data
+  displayedData: any[][] = []; // For pagination
   currentPage: number = 0;
-  rowsPerPage: number = 20; // Number of rows per page (excluding the header)
+  rowsPerPage: number = 20; // rows per page (excluding header)
 
-  constructor(private route: ActivatedRoute, private http: HttpClient) {}
+  private backendPort: string | null = null; // Başlangıçta port bilinmiyor
+
+  constructor(
+    private route: ActivatedRoute,
+    private http: HttpClient,
+    private router: Router
+  ) {}
 
   ngOnInit(): void {
     this.route.paramMap.subscribe(params => {
       this.documentId = params.get('docID') || '';
-      this.fetchDocumentData();
+      // 1) İlk iş => portu yükle, sonra belgeyi fetch et
+      this.loadPortAndThenFetch();
     });
   }
 
-  fetchDocumentData(): void {
+  private loadPortAndThenFetch() {
+    this.http.get('http://127.0.0.1:9999/env/GO_BACKEND_PORT', { responseType: 'text' })
+      .subscribe({
+        next: (portVal: string) => {
+          this.backendPort = portVal.trim();
+          console.log('Loaded port =>', this.backendPort);
+          this.fetchDocumentData();  // Port geldikten sonra
+        },
+        error: (err) => {
+          console.error('Port alınamadı => belge getirilemez.', err);
+          alert('Could not load port config. Document cannot be fetched.');
+        }
+      });
+  }
+
+  private fetchDocumentData(): void {
+    if (!this.backendPort) {
+      console.error('No backendPort => cannot fetch document data.');
+      return;
+    }
+
     const token = localStorage.getItem('token');
     if (!token) {
       alert('You need to be logged in to view the document.');
@@ -37,56 +64,77 @@ export class SingleDocumentComponent implements OnInit {
     }
 
     const headers = { 'Authorization': `Bearer ${token}` };
-    this.http.get(`http://localhost:8080/documents/${this.documentId}`, { headers })
-      .subscribe((response: any) => {
-        this.documentData = response;
-        console.log("Fetched Document Data: ", this.documentData);
+    const url = `http://localhost:${this.backendPort}/documents/${this.documentId}`;
 
-        if (this.documentData.path.endsWith('.csv')) {
-          this.parseCSVBackend();
-        } else if (this.documentData.path.endsWith('.xls') || this.documentData.path.endsWith('.xlsx')) {
-          this.parseExcelBackend();
+    this.http.get(url, { headers })
+      .subscribe({
+        next: (response: any) => {
+          this.documentData = response;
+          console.log('Fetched Document Data:', this.documentData);
+
+          if (this.documentData.path.endsWith('.csv')) {
+            this.parseCSVBackend();
+          } else if (
+            this.documentData.path.endsWith('.xls') ||
+            this.documentData.path.endsWith('.xlsx')
+          ) {
+            this.parseExcelBackend();
+          }
+        },
+        error: (error) => {
+          console.error('Error fetching document data:', error);
         }
-      }, error => {
-        console.error('Error fetching document data:', error);
+      });
+  }
+
+  // CSV parse
+  private parseCSVBackend(): void {
+    if (!this.backendPort) return;
+
+    const url = `http://localhost:${this.backendPort}/document-content/${this.documentId}`;
+    this.http.get(url, { responseType: 'text' })
+      .subscribe(csvData => {
+        Papa.parse(csvData, {
+          complete: (result: Papa.ParseResult<string[]>) => {
+            // Boş olmayan satırlar
+            this.tableData = result.data.filter(row =>
+              row.some(cell => cell && cell.trim() !== '')
+            );
+            this.updateDisplayedData();
+          }
+        });
       });
   }
 
-  // Backend'den dosya içeriğini alarak CSV olarak parse etme
-  parseCSVBackend(): void {
-    this.http.get(`http://localhost:8080/document-content/${this.documentId}`, { responseType: 'text' }).subscribe(csvData => {
-      Papa.parse(csvData, {
-        complete: (result: Papa.ParseResult<string[]>) => {
-          this.tableData = result.data.filter(row => row.some(cell => cell && cell.trim() !== ''));  // Sadece boş olmayan satırları ekle
-          this.updateDisplayedData(); // Update paginated data
-        }
+  // Excel parse
+  private parseExcelBackend(): void {
+    if (!this.backendPort) return;
+
+    const url = `http://localhost:${this.backendPort}/document-content/${this.documentId}`;
+    this.http.get(url, { responseType: 'arraybuffer' })
+      .subscribe(arrayBuffer => {
+        const data = new Uint8Array(arrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        const jsonData = XLSX.utils.sheet_to_json<any[]>(worksheet, { header: 1 });
+
+        this.tableData = jsonData.filter((row: any[]) =>
+          row.some(cell => cell && cell.toString().trim() !== '')
+        );
+        this.updateDisplayedData();
       });
-    });
   }
 
-  // Backend'den Excel dosyasını alıp işleme
-  parseExcelBackend(): void {
-    this.http.get(`http://localhost:8080/document-content/${this.documentId}`, { responseType: 'arraybuffer' }).subscribe(arrayBuffer => {
-      const data = new Uint8Array(arrayBuffer);
-      const workbook = XLSX.read(data, { type: 'array' });
-      const firstSheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[firstSheetName];
-      const jsonData = XLSX.utils.sheet_to_json<any[]>(worksheet, { header: 1 });  // Satırların dizisi olarak JSON verisi
-      this.tableData = jsonData.filter((row: any[]) => row.some(cell => cell && cell.toString().trim() !== ''));  // Sadece boş olmayan satırları ekle
-      this.updateDisplayedData(); // Update paginated data
-    });
-  }
-
-  // Paginated data updates
+  // Pagination
   updateDisplayedData(): void {
-    const start = this.currentPage * this.rowsPerPage + 1; // Skip header row for pagination
+    const start = this.currentPage * this.rowsPerPage + 1; // skip header row
     const end = start + this.rowsPerPage;
     this.displayedData = this.tableData.slice(start, end);
   }
 
-  // Navigation functions
   nextPage(): void {
-    if ((this.currentPage + 1) * this.rowsPerPage+1 < this.tableData.length) {
+    if ((this.currentPage + 1) * this.rowsPerPage + 1 < this.tableData.length) {
       this.currentPage++;
       this.updateDisplayedData();
     }
@@ -100,10 +148,11 @@ export class SingleDocumentComponent implements OnInit {
   }
 
   getTotalPages(): number {
-    return Math.ceil((this.tableData.length - 2) / this.rowsPerPage); // Exclude the header row from pagination
+    // Exclude header row from pagination
+    return Math.ceil((this.tableData.length - 2) / this.rowsPerPage);
   }
+
   goToStatistician(): void {
-    window.location.href = '/statistician';  // Redirect using href
+    window.location.href = '/statistician';
   }
-  
 }

@@ -4,10 +4,10 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';  // Import FormsModule
 
 interface Document {
-  ID: string;              // MongoDB'deki ID
-  OriginalName: string;    // Orijinal dosya adı
-  Path: string;            // Dosya yolu
-  Owner: string;           // Sahip bilgisi
+  ID: string;
+  OriginalName: string;
+  Path: string;
+  Owner: string;
 }
 
 @Component({
@@ -15,14 +15,14 @@ interface Document {
   standalone: true,
   templateUrl: './statistician.component.html',
   styleUrls: ['./statistician.component.css'],
-  imports: [CommonModule, FormsModule]  // Include FormsModule in imports
+  imports: [CommonModule, FormsModule]
 })
 export class StatisticianComponent implements OnInit {
-  documents: Document[] = [];  // Documents array
-  selectedDocument: Document | null = null; // Seçilen belge
-  isDocumentLocked: boolean = false; // Belge seçildikten sonra kilitlenip kilitlenmediğini takip etmek için
+  documents: Document[] = [];
+  selectedDocument: Document | null = null;
+  isDocumentLocked: boolean = false;
 
-  selectedOption: string | null = null; // ML veya Report seçimi
+  selectedOption: string | null = null; // 'ml' veya 'report'
   mlQuestions = [
     {
       question: 'Delete data to simulate missing data',
@@ -31,20 +31,10 @@ export class StatisticianComponent implements OnInit {
     {
       question: 'Which imputation method would you like to use for filling missing values?',
       options: [
-        'constant', 
-        'mean', 
-        'median', 
-        'knn', 
-        'linear_regression', 
-        'multiple_imputation', 
-        'ffill', 
-        'bfill', 
-        'drop_rows', 
-        'drop_columns',
-        'pchip',
-        'linear_interpolation',
-        'neighbor_avg',
-        'mice'
+        'constant', 'mean', 'median', 'knn', 'linear_regression', 
+        'multiple_imputation', 'ffill', 'bfill', 'drop_rows', 
+        'drop_columns', 'pchip', 'linear_interpolation', 
+        'neighbor_avg', 'mice'
       ]
     },
     {
@@ -52,8 +42,6 @@ export class StatisticianComponent implements OnInit {
       options: ['True', 'False']
     }
   ];
-  
-
   reportQuestions = [
     {
       question: 'Delete data to simulate missing data',
@@ -62,37 +50,48 @@ export class StatisticianComponent implements OnInit {
     {
       question: 'Which imputation method would you like to use for filling missing values?',
       options: [
-        'constant', 
-        'mean', 
-        'median', 
-        'knn', 
-        'linear_regression', 
-        'multiple_imputation', 
-        'ffill', 
-        'bfill', 
-        'drop_rows', 
-        'drop_columns',
-        'pchip',
-        'linear_interpolation',
-        'neighbor_avg',
-        'mice'
+        'constant', 'mean', 'median', 'knn', 'linear_regression', 
+        'multiple_imputation', 'ffill', 'bfill', 'drop_rows', 
+        'drop_columns', 'pchip', 'linear_interpolation', 
+        'neighbor_avg', 'mice'
       ]
     },
   ];
-  
-  mlAnswers: string[] = Array(this.mlQuestions.length).fill('');  // ML cevapları için boş array
-  reportAnswers: string[] = Array(this.reportQuestions.length).fill('');  // Report cevapları için boş array
-  
+
+  mlAnswers: string[] = Array(this.mlQuestions.length).fill('');
+  reportAnswers: string[] = Array(this.reportQuestions.length).fill('');
 
   currentQuestionIndex: number = 0;
+
+  private backendPort: string | null = null; // Başlangıçta port yok
 
   constructor(private http: HttpClient) {}
 
   ngOnInit(): void {
-    this.getDocuments();
+    // 1) component açılınca port al, sonra getDocuments
+    this.loadPortAndThenGetDocs();
   }
 
-  getDocuments(): void {
+  private loadPortAndThenGetDocs(): void {
+    this.http.get('http://127.0.0.1:9999/env/GO_BACKEND_PORT', { responseType: 'text' })
+      .subscribe({
+        next: (portVal: string) => {
+          this.backendPort = portVal.trim();
+          console.log('Statistician => port loaded:', this.backendPort);
+          this.getDocuments();
+        },
+        error: (err) => {
+          console.error('Port alınamadı => belgelere erişilemez.', err);
+          alert('Cannot load port. Documents not fetched.');
+        }
+      });
+  }
+
+  private getDocuments(): void {
+    if (!this.backendPort) {
+      console.error('No backendPort => cannot get documents.');
+      return;
+    }
     const token = localStorage.getItem('token');
     if (!token) {
       alert('You need to be logged in to see your documents.');
@@ -100,12 +99,17 @@ export class StatisticianComponent implements OnInit {
     }
 
     const headers = { 'Authorization': `Bearer ${token}` };
-    this.http.get<{documents: Document[]}>('http://localhost:8080/documents', { headers })
-      .subscribe(response => {
-        this.documents = response.documents;
-        console.log("Documents fetched: ", this.documents);
-      }, error => {
-        console.error('Error fetching documents:', error);
+    const url = `http://localhost:${this.backendPort}/documents`;
+
+    this.http.get<{ documents: Document[] }>(url, { headers })
+      .subscribe({
+        next: (response) => {
+          this.documents = response.documents;
+          console.log("Documents fetched:", this.documents);
+        },
+        error: (err) => {
+          console.error('Error fetching documents:', err);
+        }
       });
   }
 
@@ -113,17 +117,16 @@ export class StatisticianComponent implements OnInit {
     this.selectedDocument = document;
   }
 
-  // Dökümanı seçtikten sonra kilitler ve sorular açılabilir hale gelir
   lockSelectedDocument(): void {
     if (this.selectedDocument) {
       this.isDocumentLocked = true;
-      this.currentQuestionIndex = 0;  // İlk soruyu göster
+      this.currentQuestionIndex = 0;
     }
   }
 
   onSelectOption(option: string): void {
     this.selectedOption = option;
-    this.currentQuestionIndex = 0;  // İlk soruyu göster
+    this.currentQuestionIndex = 0;
   }
 
   showNextQuestion(): void {
@@ -146,28 +149,34 @@ export class StatisticianComponent implements OnInit {
       console.log('Creating report with answers:', this.reportAnswers);
     }
   }
+
   sendAnswerToBackend(questionId: number, answer: string): void {
     if (!this.selectedDocument) {
       console.error('No document selected.');
       return;
     }
-  
-    const body = { 
-      question_id: questionId, 
+    if (!this.backendPort) {
+      console.error('No backendPort => cannot send answer to backend.');
+      return;
+    }
+
+    const body = {
+      question_id: questionId,
       answer: answer,
-      document_path: this.selectedDocument.Path,   // Seçili dosyanın path'i
-      document_id: this.selectedDocument.ID        // Seçili dosyanın ID'si
+      document_path: this.selectedDocument.Path,
+      document_id: this.selectedDocument.ID
     };
-  
-    console.log('Sending answer with document details:', body);
-  
-    this.http.post('http://localhost:8080/process-question', body)
-      .subscribe(response => {
-        console.log('Answer processed:', response);
-        this.showNextQuestion();  // Bir sonraki soruyu göster
-      }, error => {
-        console.error('Error processing question:', error);
+
+    const url = `http://localhost:${this.backendPort}/process-question`;
+    this.http.post(url, body)
+      .subscribe({
+        next: (resp) => {
+          console.log('Answer processed:', resp);
+          this.showNextQuestion();
+        },
+        error: (err) => {
+          console.error('Error processing question:', err);
+        }
       });
   }
-  
 }

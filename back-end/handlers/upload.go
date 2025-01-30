@@ -1,139 +1,157 @@
 package handlers
 
 import (
+	"bytes"
 	"fmt"
+	"io"
+	"log"
 	"net/http"
-	"os"
 	"path/filepath"
 
 	"your-backend-module/models"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"your-backend-module/config" // MinIO yapılandırmasını kullanmak için ekledik
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
+	"github.com/minio/minio-go/v7"
+	"github.com/minio/minio-go/v7/pkg/credentials"
 	"go.mongodb.org/mongo-driver/bson"
-
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
-// UploadHandler handles file uploads and saves file metadata in MongoDB
 func UploadHandler(documentCollection *mongo.Collection) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		fmt.Println("UploadHandler started")
 
-		// Get the JWT token from the Authorization header
+		// JWT'den Kullanıcı ID'sini Al
 		tokenString := c.GetHeader("Authorization")
-		fmt.Println("Authorization header received:", tokenString)
-
 		if len(tokenString) < 7 || tokenString[:7] != "Bearer " {
-			fmt.Println("Authorization token missing or incorrect format")
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization token is required"})
 			return
 		}
-
-		// Remove the "Bearer " prefix
 		tokenString = tokenString[7:]
-		fmt.Println("Token without Bearer prefix:", tokenString)
 
-		// Parse the token and extract claims
 		claims := jwt.MapClaims{}
 		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
-			fmt.Println("Parsing token")
 			return jwtKey, nil
 		})
 
-		if err != nil {
-			fmt.Println("Error parsing token:", err)
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
-			return
-		}
-
-		if !token.Valid {
-			fmt.Println("Invalid token")
+		if err != nil || !token.Valid {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
 			return
 		}
 
-		// Get the user ID from the claims
 		userIDString, ok := claims["user_id"].(string)
 		if !ok {
-			fmt.Println("Error extracting user ID from token claims")
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not extract user ID from token"})
 			return
 		}
 
-		userID, err := primitive.ObjectIDFromHex(userIDString) // ObjectID'ye çevirme
+		userID, err := primitive.ObjectIDFromHex(userIDString)
 		if err != nil {
-			fmt.Println("Invalid user ID format")
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID"})
 			return
 		}
-		fmt.Println("User ID extracted from token:", userID)
+		fmt.Println("User ID:", userID.Hex())
 
-		// Get the uploaded file
+		// Yüklenen Dosyayı Al
 		file, err := c.FormFile("file")
 		if err != nil {
-			fmt.Println("No file uploaded or error retrieving file:", err)
 			c.JSON(http.StatusBadRequest, gin.H{"error": "No file uploaded"})
 			return
 		}
 		fmt.Println("File uploaded:", file.Filename)
 
-		// Create a new document entry in MongoDB and get the document ID
+		// MongoDB'ye Dosya Bilgisi Kaydet
 		document := models.Document{
 			Owner:        userID,
-			OriginalName: file.Filename, // Orijinal dosya adını saklıyoruz
+			OriginalName: file.Filename,
 		}
 
 		insertResult, err := documentCollection.InsertOne(c, document)
 		if err != nil {
-			fmt.Println("Error saving document to MongoDB:", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not save document metadata"})
 			return
 		}
 
-		documentID := insertResult.InsertedID.(primitive.ObjectID) // Belge ID'sini alıyoruz
-		fmt.Println("Document ID generated:", documentID.Hex())
+		documentID := insertResult.InsertedID.(primitive.ObjectID)
+		fmt.Println("Document ID:", documentID.Hex())
 
-		// Create user's folder: data/{user_id}
-		userFolder := filepath.Join("..", "data", userID.Hex())
-		fmt.Println("User folder path:", userFolder)
-
-		if _, err := os.Stat(userFolder); os.IsNotExist(err) {
-			fmt.Println("User folder does not exist, creating folder:", userFolder)
-			err = os.MkdirAll(userFolder, os.ModePerm)
-			if err != nil {
-				fmt.Println("Error creating user folder:", err)
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not create user folder"})
-				return
-			}
-		} else {
-			fmt.Println("User folder already exists:", userFolder)
-		}
-
-		// Save the file using the document ID as filename
-		filePath := filepath.Join(userFolder, documentID.Hex()+filepath.Ext(file.Filename)) // Dosyayı documentID ile kaydediyoruz
-		fmt.Println("Saving file to:", filePath)
-
-		if err := c.SaveUploadedFile(file, filePath); err != nil {
-			fmt.Println("Error saving file:", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not save file"})
+		// MinIO'ya Bağlan
+		minioClient, err := minio.New(config.MinioEndpoint, &minio.Options{
+			Creds:  credentials.NewStaticV4(config.MinioAccessKey, config.MinioSecretKey, ""),
+			Secure: false, // HTTP Kullanıyorsan false, HTTPS Kullanıyorsan true
+		})
+		if err != nil {
+			log.Println("Failed to connect to MinIO:", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not connect to MinIO"})
 			return
 		}
 
-		// Update the document with the saved file path
+		// MinIO'da Bucket Kontrolü
+		exists, err := minioClient.BucketExists(c, config.BucketName)
+		if err != nil {
+			log.Println("Error checking bucket:", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not check bucket"})
+			return
+		}
+		if !exists {
+			fmt.Println("Bucket does not exist. Creating:", config.BucketName)
+			err = minioClient.MakeBucket(c, config.BucketName, minio.MakeBucketOptions{})
+			if err != nil {
+				log.Println("Error creating bucket:", err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not create bucket"})
+				return
+			}
+		}
+
+		// MinIO İçin Dosya Adı Belirleme
+		ext := filepath.Ext(file.Filename)
+		objectName := fmt.Sprintf("%s/%s%s", userID.Hex(), documentID.Hex(), ext)
+
+		// Dosyayı Aç ve MinIO'ya Yükle
+		srcFile, err := file.Open()
+		if err != nil {
+			log.Println("Error opening file:", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not open uploaded file"})
+			return
+		}
+		defer srcFile.Close()
+
+		fileBuffer := new(bytes.Buffer)
+		_, err = io.Copy(fileBuffer, srcFile)
+		if err != nil {
+			log.Println("Error reading file:", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not read uploaded file"})
+			return
+		}
+
+		_, err = minioClient.PutObject(c, config.BucketName, objectName, fileBuffer, int64(file.Size), minio.PutObjectOptions{
+			ContentType: "application/octet-stream",
+		})
+		if err != nil {
+			log.Println("Error uploading to MinIO:", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not upload file to MinIO"})
+			return
+		}
+
+		// MinIO'da Saklanan Dosyanın URL'sini MongoDB'ye Kaydet
+		fileURL := fmt.Sprintf("http://%s/%s/%s", config.MinioEndpoint, config.BucketName, objectName)
 		filter := bson.M{"_id": documentID}
-		update := bson.M{"$set": bson.M{"path": filePath}}
+		update := bson.M{"$set": bson.M{"path": fileURL}}
 
 		_, err = documentCollection.UpdateOne(c, filter, update)
 		if err != nil {
-			fmt.Println("Error updating document with file path:", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not update document with file path"})
+			log.Println("Error updating MongoDB with MinIO URL:", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not update document with file URL"})
 			return
 		}
 
-		fmt.Println("File and document metadata saved successfully")
+		fmt.Println("File successfully uploaded to MinIO:", fileURL)
+
 		c.JSON(http.StatusOK, gin.H{
-			"message": fmt.Sprintf("File %s uploaded successfully to %s", file.Filename, userFolder),
+			"message": fmt.Sprintf("File %s uploaded successfully to MinIO", file.Filename),
+			"url":     fileURL,
 		})
 	}
 }

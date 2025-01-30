@@ -2,8 +2,10 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -12,8 +14,17 @@ import (
 	"strings"
 	"sync"
 
+	"your-backend-module/config" // MinIO yapılandırmasını buradan alıyoruz
+	"github.com/minio/minio-go/v7"
+	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/streadway/amqp"
 )
+
+// Helper struct for sending data to Django API
+type FilePaths struct {
+	InputPath  string `json:"input_path"`
+	OutputPath string `json:"output_path"`
+}
 
 func failOnError(err error, msg string) {
 	if err != nil {
@@ -21,33 +32,24 @@ func failOnError(err error, msg string) {
 	}
 }
 
-// Struct for sending data to Django API
-type FilePaths struct {
-	InputPath  string `json:"input_path"`
-	OutputPath string `json:"output_path"`
-}
-
+// ------------------- Django API CALLS ------------------- //
 func callDjangoAPI(inputPath, outputPath string) error {
-	// Prepare the data to be sent to the Django API
 	data := FilePaths{
 		InputPath:  inputPath,
 		OutputPath: outputPath,
 	}
 
-	// Convert data to JSON
 	jsonData, err := json.Marshal(data)
 	if err != nil {
 		return fmt.Errorf("failed to marshal data: %v", err)
 	}
 
-	// Send POST request to Django API
 	resp, err := http.Post("http://127.0.0.1:8000/app/fake-deletion/", "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
 		return fmt.Errorf("failed to call Django API: %v", err)
 	}
 	defer resp.Body.Close()
 
-	// Check for a successful response
 	if resp.StatusCode != http.StatusOK {
 		body, _ := ioutil.ReadAll(resp.Body)
 		return fmt.Errorf("error from Django API: %v, response: %s", resp.Status, body)
@@ -56,29 +58,25 @@ func callDjangoAPI(inputPath, outputPath string) error {
 	log.Printf("Successfully called Django API for input: %s and output: %s", inputPath, outputPath)
 	return nil
 }
-// callDjangoAPI'yi imputation işlemi için güncelleyelim
+
 func callDjangoAPIimp(inputPath, outputPath string, answer string) error {
-	// Prepare the data to be sent to the Django API
 	data := map[string]interface{}{
 		"input_path":  inputPath,
 		"output_path": outputPath,
-		"answer":      answer,  // Veri doldurma işlemi için answer bilgisi
+		"answer":      answer,
 	}
 
-	// Convert data to JSON
 	jsonData, err := json.Marshal(data)
 	if err != nil {
 		return fmt.Errorf("failed to marshal data: %v", err)
 	}
 
-	// Send POST request to Django API for imputation
 	resp, err := http.Post("http://127.0.0.1:8000/app/data-imputation/", "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
 		return fmt.Errorf("failed to call Django API: %v", err)
 	}
 	defer resp.Body.Close()
 
-	// Check for a successful response
 	if resp.StatusCode != http.StatusOK {
 		body, _ := ioutil.ReadAll(resp.Body)
 		return fmt.Errorf("error from Django API: %v, response: %s", resp.Status, body)
@@ -88,26 +86,23 @@ func callDjangoAPIimp(inputPath, outputPath string, answer string) error {
 	return nil
 }
 
+// ------------------- TEMP FILES & LOG DELETE ------------------- //
 func deleteAllTempFiles(logFilePath string) error {
-	// Log dosyasının varlığını kontrol et
 	if _, err := os.Stat(logFilePath); os.IsNotExist(err) {
 		log.Printf("Log file does not exist, skipping delete operation: %s", logFilePath)
 		return nil
 	}
 
-	// Log dosyasını oku
 	data, err := ioutil.ReadFile(logFilePath)
 	if err != nil {
 		return fmt.Errorf("failed to read log file: %v", err)
 	}
 
-	// Eğer dosya boşsa, işlem yapmadan dön
 	if len(data) == 0 {
 		log.Printf("Log file is empty, nothing to delete: %s", logFilePath)
 		return nil
 	}
 
-	// Tüm temp dosya path'lerini bul ve sil
 	lines := strings.Split(string(data), "\n")
 	for _, line := range lines {
 		if line == "" {
@@ -117,9 +112,8 @@ func deleteAllTempFiles(logFilePath string) error {
 		if len(parts) < 4 {
 			continue
 		}
-		tempFilePath := strings.TrimSpace(parts[3]) // Temp dosya yolunu al
+		tempFilePath := strings.TrimSpace(parts[3])
 
-		// Dosyayı sil
 		if err := os.Remove(tempFilePath); err != nil {
 			if os.IsNotExist(err) {
 				log.Printf("Temp file already deleted or does not exist: %s", tempFilePath)
@@ -131,7 +125,6 @@ func deleteAllTempFiles(logFilePath string) error {
 		}
 	}
 
-	// Log dosyasını temizle
 	err = ioutil.WriteFile(logFilePath, []byte(""), 0644)
 	if err != nil {
 		return fmt.Errorf("failed to clear log file: %v", err)
@@ -141,223 +134,227 @@ func deleteAllTempFiles(logFilePath string) error {
 	return nil
 }
 
+// ------------------- MINIO HELPER (Opsiyonel) ------------------- //
+
+// getFileContent, gelen `documentPath` eğer MinIO URL'si (http:// veya https://) ise
+// MinIO'dan dosyayı indirip []byte olarak döndürür. Yoksa local okur.
+func getFileContent(documentPath string) ([]byte, error) {
+	if strings.HasPrefix(documentPath, "http://") || strings.HasPrefix(documentPath, "https://") {
+		parts := strings.Split(documentPath, "/")
+		if len(parts) < 5 {
+			return nil, fmt.Errorf("invalid MinIO path format: %s", documentPath)
+		}
+		objectName := strings.Join(parts[4:], "/")
+
+		minioClient, err := minio.New(config.MinioEndpoint, &minio.Options{
+			Creds:  credentials.NewStaticV4(config.MinioAccessKey, config.MinioSecretKey, ""),
+			Secure: false,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to connect to MinIO: %v", err)
+		}
+
+		obj, err := minioClient.GetObject(context.TODO(), config.BucketName, objectName, minio.GetObjectOptions{})
+		if err != nil {
+			return nil, fmt.Errorf("error fetching file from MinIO: %v", err)
+		}
+		defer obj.Close()
+
+		fileContent, err := io.ReadAll(obj)
+		if err != nil {
+			return nil, fmt.Errorf("error reading file content from MinIO: %v", err)
+		}
+		return fileContent, nil
+	}
+
+	// Local dosya gibi oku
+	return ioutil.ReadFile(documentPath)
+}
+
+// ------------------- MAIN (RABBITMQ CONSUMER) ------------------- //
 func main() {
-	// RabbitMQ'ya bağlan
 	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
 	failOnError(err, "Failed to connect to RabbitMQ")
 	defer conn.Close()
 
-	// Kanal oluştur
 	ch, err := conn.Channel()
 	failOnError(err, "Failed to open a channel")
 	defer ch.Close()
 
-	// Kuyruğa bağlan
 	q, err := ch.QueueDeclare(
-		"pipeline_queue", // Kuyruk adı
-		false,            // Kalıcı
-		false,            // Silinsin mi?
-		false,            // Exclusive mi?
-		false,            // No-wait
-		nil,              // Ekstra argümanlar
+		"pipeline_queue",
+		false, false, false, false,
+		nil,
 	)
 	failOnError(err, "Failed to declare a queue")
 
-	// Kuyruğu dinle
 	msgs, err := ch.Consume(
-		q.Name, // Kuyruk adı
-		"",     // Consumer adı
-		true,   // Auto-ack
-		false,  // Exclusive
-		false,  // No-local
-		false,  // No-wait
-		nil,    // Args
+		q.Name,
+		"",
+		true,  // Auto-ack
+		false, // Exclusive
+		false, // No-local
+		false, // No-wait
+		nil,
 	)
 	failOnError(err, "Failed to register a consumer")
 
-	// Çalıştırma dizininin bir üst dizinini al
 	baseDir, err := os.Getwd()
 	if err != nil {
 		log.Fatalf("Failed to get current directory: %v", err)
 	}
-	// Üst dizine git
 	parentDir := filepath.Dir(baseDir)
 
-	// 'scripts/tempdata' klasörünü oluştur
+	// scripts/tempdata
 	scriptsDir := filepath.Join(parentDir, "scripts")
 	tempDataDir := filepath.Join(scriptsDir, "tempdata")
-
-	// Klasör yoksa oluştur
-	err = os.MkdirAll(tempDataDir, os.ModePerm)
-	if err != nil {
+	if err := os.MkdirAll(tempDataDir, os.ModePerm); err != nil {
 		log.Fatalf("Failed to create tempdata directory: %v", err)
 	}
 
-	// Her documentID için tempPath saklayan map yapısı
 	tempPaths := make(map[string]string)
-	var mu sync.Mutex // Mutex kullanarak map yapısını eş zamanlı erişime karşı koruyacağız
+	var mu sync.Mutex
 
-	// Sonsuza kadar dinle
 	forever := make(chan bool)
 
-	// Mesajları dinle ve işleyelim
 	go func() {
 		for d := range msgs {
 			fmt.Printf("Received a message: %s\n", d.Body)
 
-			// Mesajı split ile ayıralım
+			// rabbitlogs.txt
+			logFilePath1 := "rabbitlogs.txt"
+			logFile, err := os.OpenFile(logFilePath1, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+			if err != nil {
+				log.Printf("Error opening RabbitMQ log file: %v", err)
+				continue
+			}
+			logEntry1 := fmt.Sprintf("Received a message: %s\n", d.Body)
+			if _, err := logFile.WriteString(logEntry1); err != nil {
+				log.Printf("Error writing to RabbitMQ log file: %v", err)
+			}
+			logFile.Close()
+
 			messageParts := strings.Split(string(d.Body), ", ")
 			if len(messageParts) != 4 {
 				log.Printf("Invalid message format: %s", d.Body)
 				continue
 			}
 
-			// Mesaj parçalarını ayrıştıralım
 			questionID := strings.Split(messageParts[0], ": ")[1]
 			answer := strings.Split(messageParts[1], ": ")[1]
 			documentID := strings.Split(messageParts[2], ": ")[1]
 			documentPath := strings.Split(messageParts[3], ": ")[1]
 
-			// Yolu temizleyelim ve baseDir'in bir üstüne ekleyelim
 			fmt.Printf("Input path: %s\n", documentPath)
 
-			cleanDocumentPath := filepath.Clean(documentPath)
-			fmt.Printf("Clean document path: %s\n", cleanDocumentPath)
-
-			fullDocumentPath := filepath.Join(parentDir, cleanDocumentPath)
-			fmt.Printf("Full document path: %s\n", fullDocumentPath)
-
-			// Kontrol et: Bu bir dosya mı?
-			info, err := os.Stat(fullDocumentPath)
-			if os.IsNotExist(err) {
-				log.Printf("Error: The file does not exist at path: %s", fullDocumentPath)
-				continue
-			}
-			if info.IsDir() {
-				log.Printf("Error: The path is a directory, not a file: %s", fullDocumentPath)
-				continue
-			}
-			logFilePath := filepath.Join(parentDir, "logs", fmt.Sprintf("rabbitlog%s.txt", documentID))
-			err = os.MkdirAll(filepath.Dir(logFilePath), os.ModePerm)
+			// 1) Dosyayı (MinIO / local) oku
+			fileContent, err := getFileContent(documentPath)
 			if err != nil {
+				log.Printf("Error reading file from path/MinIO: %v", err)
+				continue
+			}
+
+			logFilePath := filepath.Join(parentDir, "logs", fmt.Sprintf("rabbitlog%s.txt", documentID))
+			if err := os.MkdirAll(filepath.Dir(logFilePath), os.ModePerm); err != nil {
 				log.Fatalf("Failed to create logs directory: %v", err)
 			}
+
 			if questionID == "1" {
-				tempPaths[documentID]=fullDocumentPath
+				mu.Lock()
+				tempPaths[documentID] = ""
+				mu.Unlock()
+
 				log.Printf("First question received, deleting all temp files for DocumentID: %s", documentID)
-				err := deleteAllTempFiles(logFilePath)
-				if err != nil {
+				if err := deleteAllTempFiles(logFilePath); err != nil {
 					log.Printf("Error deleting temp files: %v", err)
 					continue
 				}
 			}
-			// Log dosyasının yolu
 
-
-			// Eğer ilk soruysa, tüm eski temp dosyaları sil
-
-
-			// Mutex kullanarak map'e güvenli erişim
 			mu.Lock()
 			tempFilePath, exists := tempPaths[documentID]
 			mu.Unlock()
 
 			var newTempFilePath string
 
-			// Eğer tempPath yoksa, yani bu ilk soruysa, yeni bir temp dosya oluştur
-			if !exists {
-				fileContent, err := ioutil.ReadFile(fullDocumentPath)
-				if err != nil {
-					log.Printf("Error reading file %s: %v", fullDocumentPath, err)
-					continue
-				}
-
-				// İlk sorunun temp dosyasını oluştur
+			// Eğer tempPath yoksa, yani ilk kez işlem
+			if !exists || tempFilePath == "" {
 				originalFileName := filepath.Base(documentPath)
-				ext := filepath.Ext(originalFileName) // .csv uzantısını al
-				baseFileName := originalFileName[:len(originalFileName)-len(ext)] // uzantısız dosya adı
+				ext := filepath.Ext(originalFileName)
+				baseFileName := originalFileName[:len(originalFileName)-len(ext)]
 
-				newTempFilePath = fmt.Sprintf("%s_{%s_%s}%s", baseFileName, questionID, answer, ext) // uzantıyı en sona ekle
-				newTempFilePath = filepath.Join(tempDataDir, newTempFilePath) // scripts/tempdata içine kaydet
-				tempPaths[documentID]=newTempFilePath
+				// SORU 1 -> someid_{1_ml}.xlsx
+				newTempFilePath = fmt.Sprintf("%s_{%s_%s}%s", baseFileName, questionID, answer, ext)
+				newTempFilePath = filepath.Join(tempDataDir, newTempFilePath)
 
-				err = ioutil.WriteFile(newTempFilePath, fileContent, 0644)
-				if err != nil {
+				if err := ioutil.WriteFile(newTempFilePath, fileContent, 0644); err != nil {
 					log.Printf("Error creating temp file %s: %v", newTempFilePath, err)
 					continue
 				}
 
-				// tempPath'i map'e kaydet
 				mu.Lock()
 				tempPaths[documentID] = newTempFilePath
 				mu.Unlock()
+
 			} else {
-				// Temp dosya zaten varsa, ona ekleme yap
-				fileContent, err := ioutil.ReadFile(tempFilePath)
+				// Mevcut bir temp dosya var, oradan okuyacağız
+				existingContent, err := ioutil.ReadFile(tempFilePath)
 				if err != nil {
 					log.Printf("Error reading temp file %s: %v", tempFilePath, err)
 					continue
 				}
 
-				// Mevcut temp dosyasına sorunun cevabını ekle
 				originalFileName := filepath.Base(tempFilePath)
-				ext := filepath.Ext(originalFileName) // .csv uzantısını al
-				baseFileName := originalFileName[:len(originalFileName)-len(ext)] // uzantısız dosya adı
+				ext := filepath.Ext(originalFileName)
 
-				newTempFilePath = fmt.Sprintf("%s_{%s_%s}%s", baseFileName, questionID, answer, ext) // uzantıyı en sona ekle
+				// BASE ADI OLDUĞU GİBİ KORU, DEVAMINI EKLE
+				// Örneğin: 679b6e6dce0c8e7e2367af8d_{1_ml} => {2_yes} => 679b6e6dce0c8e7e2367af8d_{1_ml}_{2_yes}
+				baseFileName := originalFileName[:len(originalFileName)-len(ext)]
+				// baseFileName: 679b6e6dce0c8e7e2367af8d_{1_ml} => ekleyelim => {2_yes}
+				newBaseName := fmt.Sprintf("%s_{%s_%s}", baseFileName, questionID, answer)
+				newTempFilePath = newBaseName + ext
 				newTempFilePath = filepath.Join(tempDataDir, newTempFilePath)
 
-				// Eğer ikinci sorunun cevabı "Option 1" ise Django API'yi çağır
+				// Soru 2, Answer=Yes => Django API
 				if questionID == "2" && answer == "Yes" {
 					log.Printf("Calling Django API for second question Option 1")
-
-					// Call Django API to process the file
-					err = callDjangoAPI(tempFilePath, newTempFilePath)
-					if err != nil {
+					if err := callDjangoAPI(tempFilePath, newTempFilePath); err != nil {
 						log.Printf("Error calling Django API: %v", err)
 						continue
 					}
+				} else if questionID == "3" {
+					// 3. soru imputation
+					log.Printf("Third question received, calling Django API for imputation")
+					if err := callDjangoAPIimp(tempFilePath, newTempFilePath, answer); err != nil {
+						log.Printf("Error calling Django API for imputation: %v", err)
+						continue
+					}
 				} else {
-					// Option 2 veya Option 3 için işlemi yapmadan temp dosyayı kaydet
-					err = ioutil.WriteFile(newTempFilePath, fileContent, 0644)
-					if err != nil {
+					// Diğer durumlarda direkt kopyala
+					if err := ioutil.WriteFile(newTempFilePath, existingContent, 0644); err != nil {
 						log.Printf("Error creating updated temp file %s: %v", newTempFilePath, err)
 						continue
 					}
 				}
-// 3. soru geldiğinde Django API'yi imputation metoduyla çağır
-if questionID == "3" {
-    log.Printf("Third question received, calling Django API for imputation")
 
-    // Call Django API for imputation
-    err = callDjangoAPIimp(tempFilePath, newTempFilePath,answer)
-    if err != nil {
-        log.Printf("Error calling Django API for imputation: %v", err)
-        continue
-    }
-}
-
-
-				// Temp path'i güncelle
 				mu.Lock()
 				tempPaths[documentID] = newTempFilePath
 				mu.Unlock()
 			}
 
-			// Log dosyasına yazarken güncellenmiş dosya adını kullan
-			logEntry := fmt.Sprintf("%s,%s,%s,%s\n", questionID, answer, documentID, newTempFilePath) // Güncellenmiş temp dosya yolu
+			logEntry := fmt.Sprintf("%s,%s,%s,%s\n", questionID, answer, documentID, newTempFilePath)
 			f, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 			if err != nil {
 				log.Printf("Error opening log file %s: %v", logFilePath, err)
 				continue
 			}
 			defer f.Close()
+
 			if _, err := f.WriteString(logEntry); err != nil {
 				log.Printf("Error writing to log file %s: %v", logFilePath, err)
 				continue
 			}
 
-			// Log dosyasına başarıyla yazıldığını belirtelim
 			log.Printf("Successfully processed and logged for DocumentID: %s\n", documentID)
 		}
 	}()

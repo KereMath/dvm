@@ -1,43 +1,51 @@
 package main
 
 import (
-	"your-backend-module/config"
-	"your-backend-module/handlers"
-	"your-backend-module/middlewares"
-"time"
-	"context" // Eksik olan context paketi eklendi
-	"github.com/gin-gonic/gin"
-	"github.com/gin-contrib/cors"
+    "flag"
+    "fmt"
+    "your-backend-module/config"
+    "your-backend-module/handlers"
+    "your-backend-module/middlewares"
+    "time"
+    "context"
+    "github.com/gin-contrib/cors"
+    "github.com/gin-gonic/gin"
 )
 
 func main() {
-	r := gin.Default()
-	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:4200"},  // Frontend URL
-		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Authorization", "Content-Type"},
-		ExposeHeaders:    []string{"Authorization"},
-		AllowCredentials: true,
-		MaxAge:           12 * time.Hour,
-	}))
+    // 1) Portu bir flag olarak tanımlıyoruz
+    portFlag := flag.String("port", "8080", "HTTP port")
+    flag.Parse()
 
-	// Setup database connection
-	client, userCollection, documentCollection := config.SetupDatabase()
-	defer client.Disconnect(context.Background())
+    // 2) Gin router
+    r := gin.Default()
+    r.Use(cors.New(cors.Config{
+        AllowOrigins:     []string{"http://localhost:4200"},
+        AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+        AllowHeaders:     []string{"Authorization", "Content-Type"},
+        ExposeHeaders:    []string{"Authorization"},
+        AllowCredentials: true,
+        MaxAge:           12 * time.Hour,
+    }))
 
-	// Routes
-	r.GET("/hello-backend", handlers.HelloHandler)
-	r.POST("/register", handlers.RegisterHandler(userCollection))
-	r.POST("/login", handlers.LoginHandler(userCollection))
-	r.POST("/upload", handlers.UploadHandler(documentCollection)) // Upload rotasına documentCollection eklendi
-	r.GET("/validate-token", middleware.ValidateToken())          // Token doğrulama rotası
-	r.GET("/documents", handlers.GetDocumentsHandler(documentCollection))
-	r.DELETE("/delete-file/:id", handlers.DeleteFileHandler(documentCollection)) // Dosya silme rotası
-	r.GET("/documents/:docID", handlers.GetSingleDocumentHandler(documentCollection)) // Yeni route
-    r.GET("/document-content/:docID", handlers.DocumentContentHandler(documentCollection)) // Document content route
-	r.POST("/process-question", handlers.PipelineManagerHandler)
-	r.GET("/user", handlers.GetUserHandler(userCollection)) // Kullanıcı bilgisi rotası
+    // Setup database connection
+    client, userCollection, documentCollection := config.SetupDatabase()
+    defer client.Disconnect(context.Background())
 
-	// Start the server
-	r.Run(":8080")
+    // Routes
+    r.GET("/hello-backend", handlers.HelloHandler)
+    r.POST("/register", handlers.RegisterHandler(userCollection))
+    r.POST("/login", handlers.LoginHandler(userCollection))
+    r.POST("/upload", handlers.UploadHandler(documentCollection))
+    r.GET("/validate-token", middleware.ValidateToken()) // Orta katman fonksiyon adını düzelt
+    r.GET("/documents", handlers.GetDocumentsHandler(documentCollection))
+    r.DELETE("/delete-file/:id", handlers.DeleteFileHandler(documentCollection))
+    r.GET("/documents/:docID", handlers.GetSingleDocumentHandler(documentCollection))
+    r.GET("/document-content/:docID", handlers.DocumentContentHandler(documentCollection))
+    r.POST("/process-question", handlers.PipelineManagerHandler)
+    r.GET("/user", handlers.GetUserHandler(userCollection))
+
+    // 3) Port parametresini kullan
+    address := fmt.Sprintf(":%s", *portFlag)
+    r.Run(address)
 }

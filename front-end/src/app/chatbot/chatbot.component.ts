@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { HttpClientModule } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
@@ -12,19 +12,37 @@ import { FileService } from '../services/file.service'; // <-- Servisi içe akta
   templateUrl: './chatbot.component.html',
   styleUrls: ['./chatbot.component.css'],
 })
-export class ChatbotComponent {
+export class ChatbotComponent implements OnInit {
+  
   expanded = false;
   messages: { role: string; text: string }[] = [];
   userMessage = '';
   currentChatId: string | null = null;
-
-  // Seçilen dosyayı burada da tutabiliriz (ama esas upload işlemi "upload.component"ta)
   selectedChatFile: File | null = null;
+
+  // Başlangıçta varsayılan portu 8001 olarak atayabiliriz (ya da 8015 vb.)
+  chatAppPort = '8001';
 
   constructor(
     private http: HttpClient,
-    private fileService: FileService  // <-- Enjekte et
+    private fileService: FileService
   ) {}
+
+  ngOnInit(): void {
+    // Her 1 saniyede bir /env/CHATAPP_PORT'tan portu çekip "chatAppPort" değişkenine at.
+    setInterval(() => {
+      this.http.get('http://127.0.0.1:9999/env/CHATAPP_PORT', { responseType: 'text' })
+        .subscribe({
+          next: (portVal: string) => {
+            const trimmedPort = portVal.trim();
+            this.chatAppPort = trimmedPort;  // en güncel port
+          },
+          error: (err) => {
+            console.error('CHATAPP_PORT alınamadı:', err);
+          }
+        });
+    }, 1000); // 1000 ms = 1 saniye
+  }
 
   toggleChat() {
     this.expanded = !this.expanded;
@@ -38,10 +56,10 @@ export class ChatbotComponent {
   }
 
   createNewChat() {
-    this.http
-      .post('http://127.0.0.1:8001/api/public_chat/create/', {}, {
-        withCredentials: true,
-      })
+    // Artık sabit 8001 yerine dinamik chatAppPort değeri kullanıyoruz
+    const createUrl = `http://127.0.0.1:${this.chatAppPort}/api/public_chat/create/`;
+
+    this.http.post(createUrl, {}, { withCredentials: true })
       .subscribe({
         next: (response: any) => {
           console.log('Yeni sohbet oluşturuldu:', response);
@@ -67,25 +85,24 @@ export class ChatbotComponent {
     const message = this.userMessage.trim();
     this.messages.push({ role: 'user', text: message });
 
-    this.http
-      .post(
-        'http://127.0.0.1:8001/api/public_chat/ask/',
-        { message, chat_id: this.currentChatId },
-        { withCredentials: true }
-      )
-      .subscribe({
-        next: (response: any) => {
-          // Asistan cevabını ekle
-          this.messages.push({ role: 'assistant', text: response.response });
-          // İçindeki komutları incele
-          this.handleCommands(response.response);
-          // Input temizle
-          this.userMessage = '';
-        },
-        error: (error) => {
-          console.error('Mesaj gönderme sırasında hata oluştu:', error);
-        },
-      });
+    const askUrl = `http://127.0.0.1:${this.chatAppPort}/api/public_chat/ask/`;
+
+    this.http.post(
+      askUrl,
+      { message, chat_id: this.currentChatId },
+      { withCredentials: true }
+    )
+    .subscribe({
+      next: (response: any) => {
+        // Asistan cevabını ekle
+        this.messages.push({ role: 'assistant', text: response.response });
+        this.handleCommands(response.response);
+        this.userMessage = '';
+      },
+      error: (error) => {
+        console.error('Mesaj gönderme sırasında hata oluştu:', error);
+      },
+    });
   }
 
   // ChatBot içerisinde "Ataş" butonuna (id="attachmentBtn") tıklama
@@ -95,50 +112,33 @@ export class ChatbotComponent {
   }
 
   // Dosya seçildiğinde
-
   onChatFileSelected(event: any) {
     const file = event.target.files[0];
     this.selectedChatFile = file;
-
-    // 1) FileService'e kaydediyoruz
     this.fileService.setFile(file);
-
-    // 2) Chat'te göstermek isterseniz
     this.messages.push({
       role: 'assistant',
       text: `Seçilen dosya: ${file.name}`
     });
   }
 
-  // LLM cevabında [CLICK: #...] komutlarını parse
+  // Komutları parse
   handleCommands(assistantText: string) {
-    // Regex ile [CLICK: #...] komutlarını bulalım
     const clickRegex = /\[CLICK:\s*([^\]]+)\]/g;
     let match;
     while ((match = clickRegex.exec(assistantText)) !== null) {
-      const selector = match[1].trim(); // örn. "#uploadBtn"
-  
-      // Örneğin eğer #uploadBtn'e tıklanacaksa, önce dosya seçilmiş mi?
+      const selector = match[1].trim();
       if (selector === '#uploadBtn') {
-        // "upload.component.html" içindeki file input'a veya selectedFile durumuna bakacağız
-        // En basit yaklaşım: Angular 'disabled' parametresini kontrol veya DOM check
         const uploadBtnEl = document.querySelector('#uploadBtn') as HTMLButtonElement;
-        if (uploadBtnEl) {
-          // Butonun disable durumunu inceleyelim:
-          if (uploadBtnEl.disabled) {
-            // Henüz dosya seçilmemiş => Chat'e "dosya seçmen lazım" mesajı ekleyelim
-            this.messages.push({
-              role: 'assistant',
-              text: 'Henüz bir dosya seçilmedi! Lütfen önce dosya ekleyin.'
-            });
-            // Burada .click() yaptırmıyoruz (ya da yapsak bile disabled = true olduğu için çalışmaz)
-            continue; 
-          }
-        } 
-        // Eğer disabled değilse, normal akışta tıklayalım:
+        if (uploadBtnEl && uploadBtnEl.disabled) {
+          this.messages.push({
+            role: 'assistant',
+            text: 'Henüz bir dosya seçilmedi! Lütfen önce dosya ekleyin.'
+          });
+          continue;
+        }
       }
-  
-      // Diğer durumlarda (ör. #attachmentBtn veya #docBtn vs.):
+
       setTimeout(() => {
         const el = document.querySelector(selector) as HTMLElement;
         if (el) {
@@ -150,5 +150,4 @@ export class ChatbotComponent {
       }, 200);
     }
   }
-  
 }

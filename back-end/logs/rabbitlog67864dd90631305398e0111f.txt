@@ -1,3 +1,0 @@
-1,ml,67864dd90631305398e0111f,C:\Users\J.A.R.V.I.S\Desktop\dvm\back-end\scripts\tempdata\67864dd90631305398e0111f_{1_ml}.csv
-2,Yes,67864dd90631305398e0111f,C:\Users\J.A.R.V.I.S\Desktop\dvm\back-end\scripts\tempdata\67864dd90631305398e0111f_{1_ml}_{2_Yes}.csv
-3,constant,67864dd90631305398e0111f,C:\Users\J.A.R.V.I.S\Desktop\dvm\back-end\scripts\tempdata\67864dd90631305398e0111f_{1_ml}_{2_Yes}_{3_constant}.csv

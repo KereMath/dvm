@@ -14,22 +14,43 @@ export class RegisterComponent {
   username: string = '';
   password: string = '';
 
-  constructor(private http: HttpClient, private router: Router) {}
+  // Port yoksa istek atma => fallback yok
+  private backendPort: string | null = null;
 
-  // Method to handle user registration
+  constructor(private http: HttpClient, private router: Router) {
+    setInterval(() => {
+      this.http.get('http://127.0.0.1:9999/env/GO_BACKEND_PORT', { responseType: 'text' })
+        .subscribe({
+          next: (portVal: string) => {
+            this.backendPort = portVal.trim();
+          },
+          error: (err) => {
+            console.error('GO_BACKEND_PORT alınamadı => null', err);
+            this.backendPort = null;
+          }
+        });
+    }, 1000);
+  }
+
   onRegister(): void {
+    if (!this.backendPort) {
+      console.error('No backendPort => cannot register.');
+      alert('Port not loaded; cannot register user.');
+      return;
+    }
     const registerData = { username: this.username, password: this.password };
+    const url = `http://localhost:${this.backendPort}/register`;
 
-    this.http.post('http://localhost:8080/register', registerData).subscribe(
-      response => {
-        console.log('Registration successful:', response);
+    this.http.post(url, registerData).subscribe({
+      next: (resp) => {
+        console.log('Registration successful:', resp);
         alert('Registration successful!');
-        this.router.navigate(['/login']); // Redirect to login after successful registration
+        this.router.navigate(['/login']);
       },
-      error => {
-        console.error('Registration failed:', error);
+      error: (err) => {
+        console.error('Registration failed:', err);
         alert('Registration failed. Please try again.');
       }
-    );
+    });
   }
 }
