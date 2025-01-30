@@ -1,0 +1,57 @@
+<div class="chatbot-container" [class.expanded]="expanded">
+  <!-- Sabit Chat Aç/Kapa Butonu -->
+  <div class="chatbot-button" (click)="toggleChat()">
+    <span>LLM</span>
+  </div>
+
+  <!-- Chatbox İçeriği -->
+  <div *ngIf="expanded" class="chatbox">
+    <!-- Header -->
+    <div class="chatbox-header">
+      <h3>Chatbot</h3>
+      <button class="close-button" (click)="closeChat()">×</button>
+    </div>
+
+    <!-- Chat Geçmişi -->
+    <div class="chatbox-history">
+      <div *ngFor="let message of messages">
+        <div
+          [class.user]="message.role === 'user'"
+          [class.assistant]="message.role === 'assistant'"
+        >
+          {{ message.text }}
+        </div>
+      </div>
+    </div>
+
+    <!-- Chat Girdisi -->
+    <div class="chatbox-input">
+      <!-- GÖRSELDE PAPERCLIP ICON (DOSYA EKLEME) BUTONU -->
+      <button
+        id="attachmentBtn"
+        class="attach-button"
+        type="button"
+        (click)="triggerAttachmentInput()"
+      >
+        📎
+      </button>
+
+      <!-- GİZLİ DOSYA INPUT -->
+      <input
+        type="file"
+        id="chatAttachInput"
+        style="display: none"
+        (change)="onChatFileSelected($event)"
+      />
+
+      <!-- Kullanıcının metin girdiği alan -->
+      <input
+        type="text"
+        [(ngModel)]="userMessage"
+        placeholder="Mesaj yazın..."
+        (keydown.enter)="sendMessage()"
+      />
+      <button (click)="sendMessage()">Gönder</button>
+    </div>
+  </div>
+</div>

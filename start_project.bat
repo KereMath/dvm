@@ -17,8 +17,8 @@ echo Starting frontend...
 start /B cmd /c "cd /d C:\Users\J.A.R.V.I.S\Desktop\dvm\front-end && npm start > NUL 2>&1"
 
 :: Step 3: Start Django server
-echo Starting Django server...
-start /B cmd /c "cd /d C:\Users\J.A.R.V.I.S\Desktop\dvm && python manage.py runserver > NUL 2>&1"
+@REM echo Starting Django server...
+@REM start /B cmd /c "cd /d C:\Users\J.A.R.V.I.S\Desktop\dvm && python manage.py runserver 8000 > NUL 2>&1"
 
 
 :: Wait for 8 seconds before starting consumer

@@ -9,16 +9,33 @@
   <h2>Upload Your File</h2>
   <form enctype="multipart/form-data">
     <div class="input-group">
+      <!-- KLASİK DOSYA SEÇME -->
       <label for="file-input" class="custom-file-upload">
         Choose File
       </label>
       <input type="file" id="file-input" (change)="onFileSelected($event)" />
       <span id="file-name">No file chosen</span>
-      
     </div>
-    <button type="button" class="upload-button" [disabled]="!selectedFile" (click)="onSubmit()">Upload</button>
+
+    <!-- Upload Butonu (Chatbot "[CLICK: #uploadBtn]" diyebilir) -->
+    <button
+      type="button"
+      class="upload-button"
+      id="uploadBtn"
+      [disabled]="!selectedFile"
+      (click)="onSubmit()"
+    >
+      Upload
+    </button>
   </form>
-  <button type="button" class="documents-button" (click)="goToMyDocuments()">Documents</button>
 
+  <!-- Belgeler butonu -->
+  <button
+    type="button"
+    class="documents-button"
+    id="docBtn"
+    (click)="goToMyDocuments()"
+  >
+    Documents
+  </button>
 </div>
-
