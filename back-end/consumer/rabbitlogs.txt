@@ -2,3 +2,6 @@ Received a message: QuestionID: 1, Answer: ml, DocumentID: 679baf027a6eb980ea3be
 Received a message: QuestionID: 2, Answer: Yes, DocumentID: 679baf027a6eb980ea3be35c, DocumentPath: http://localhost:9000/mybucket/67865f430631305398e01120/679baf027a6eb980ea3be35c.csv
 Received a message: QuestionID: 1, Answer: report, DocumentID: 679b971a7cfc56c3d4d36501, DocumentPath: http://localhost:9000/mybucket/67865f430631305398e01120/679b971a7cfc56c3d4d36501.csv
 Received a message: QuestionID: 2, Answer: No, DocumentID: 679b971a7cfc56c3d4d36501, DocumentPath: http://localhost:9000/mybucket/67865f430631305398e01120/679b971a7cfc56c3d4d36501.csv
+Received a message: QuestionID: 1, Answer: report, DocumentID: 679bc8860685b51ecdfdb015, DocumentPath: http://localhost:9000/mybucket/67865f430631305398e01120/679bc8860685b51ecdfdb015.xlsx
+Received a message: QuestionID: 2, Answer: No, DocumentID: 679bc8860685b51ecdfdb015, DocumentPath: http://localhost:9000/mybucket/67865f430631305398e01120/679bc8860685b51ecdfdb015.xlsx
+Received a message: QuestionID: 3, Answer: mean, DocumentID: 679bc8860685b51ecdfdb015, DocumentPath: http://localhost:9000/mybucket/67865f430631305398e01120/679bc8860685b51ecdfdb015.xlsx

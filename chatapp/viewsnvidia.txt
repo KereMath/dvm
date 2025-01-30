@@ -1,0 +1,67 @@
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from openai import OpenAI
+import json
+from django.shortcuts import render
+
+def chat_page(request):
+    return render(request, "chat.html")
+
+client = OpenAI(
+    base_url="https://integrate.api.nvidia.com/v1",
+    api_key="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",
+)
+
+@csrf_exempt
+def chat_response(request):
+    if request.method == "POST":
+        data = json.loads(request.body)
+        user_input = data.get("message", "")
+
+        # Session'da chat_history adında bir liste saklıyoruz:
+        if "chat_history" not in request.session:
+            # Yeni başlayan bir sohbet varsa, boş liste oluştur
+            request.session["chat_history"] = []
+
+        # 1) Kullanıcı mesajını ekle
+        request.session["chat_history"].append({
+            "role": "user",
+            "content": user_input
+        })
+
+        try:
+            # 2) Tüm mesajları modele gönder
+            completion = client.chat.completions.create(
+                model="nvidia/llama-3.1-nemotron-70b-instruct",
+                messages=request.session["chat_history"],
+                temperature=0.5,
+                top_p=1,
+                max_tokens=1024,
+                stream=True
+            )
+
+            response_text = ""
+
+            # 3) Stream ile gelen cevabı birleştir
+            for chunk in completion:
+                if chunk.choices and chunk.choices[0].delta:
+                    content_part = chunk.choices[0].delta.content
+                    if content_part:
+                        response_text += content_part
+
+            # 4) Asistanın cevabını da geçmişe ekleyin
+            request.session["chat_history"].append({
+                "role": "assistant",
+                "content": response_text
+            })
+
+            # Session'ı güncelleyebilmek için değişikliği işaretle
+            request.session.modified = True
+
+            # 5) Sadece en son cevabı front end'e dön
+            return JsonResponse({"response": response_text}, status=200)
+
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+
+    return JsonResponse({"error": "Invalid request method"}, status=400)
