@@ -47,7 +47,7 @@ func RegisterHandler(userCollection *mongo.Collection) gin.HandlerFunc {
             return
         }
 
-        // Check if the username already exists
+        // Kullanıcı adı zaten var mı?
         var existingUser models.User
         err := userCollection.FindOne(context.Background(), bson.M{"username": user.Username}).Decode(&existingUser)
         if err == nil {
@@ -55,7 +55,7 @@ func RegisterHandler(userCollection *mongo.Collection) gin.HandlerFunc {
             return
         }
 
-        // Hash the password before saving it
+        // Şifreyi hashle
         hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
         if err != nil {
             c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not hash password"})
@@ -63,8 +63,9 @@ func RegisterHandler(userCollection *mongo.Collection) gin.HandlerFunc {
         }
 
         user.Password = string(hashedPassword)
+        user.Role = 0 // Varsayılan olarak normal kullanıcı (0) atanıyor
 
-        // Insert the new user into the database (MongoDB otomatik ObjectId atayacak)
+        // Yeni kullanıcıyı ekle
         _, err = userCollection.InsertOne(context.Background(), user)
         if err != nil {
             c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not register user"})

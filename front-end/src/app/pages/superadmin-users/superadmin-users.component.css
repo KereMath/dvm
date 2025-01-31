@@ -1,0 +1,22 @@
+.user-management {
+    padding: 20px;
+  }
+  
+  .add-user-form input, .add-user-form select, .add-user-form button {
+    margin-right: 10px;
+  }
+  
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  
+  th, td {
+    border: 1px solid #ddd;
+    padding: 8px;
+  }
+  
+  th {
+    background-color: #f2f2f2;
+  }
+  

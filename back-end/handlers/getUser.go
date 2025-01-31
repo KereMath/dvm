@@ -23,7 +23,7 @@ func GetUserHandler(userCollection *mongo.Collection) gin.HandlerFunc {
 			return
 		}
 
-		tokenString = tokenString[7:] // Remove "Bearer " prefix
+		tokenString = tokenString[7:] // "Bearer " kısmını kaldır
 		claims := jwt.MapClaims{}
 		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
 			return jwtKey, nil
@@ -47,8 +47,13 @@ func GetUserHandler(userCollection *mongo.Collection) gin.HandlerFunc {
 			return
 		}
 
-		// Kullanıcı bilgilerini MongoDB'den sorguluyoruz
-		var user bson.M
+		// Kullanıcı bilgilerini MongoDB'den çekiyoruz
+		var user struct {
+			ID       primitive.ObjectID `bson:"_id"`
+			Username string             `bson:"username"`
+			Role     int                `bson:"role"`
+		}
+
 		err = userCollection.FindOne(c, bson.M{"_id": userID}).Decode(&user)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not retrieve user information"})
@@ -57,7 +62,10 @@ func GetUserHandler(userCollection *mongo.Collection) gin.HandlerFunc {
 
 		// Kullanıcı bilgilerini JSON olarak döndürüyoruz
 		c.JSON(http.StatusOK, gin.H{
-			"user": user,
+			"user_id":  user.ID.Hex(),
+			"username": user.Username,
+			"role":     user.Role, // Artık role bilgisi de dönüyor
 		})
 	}
 }
+

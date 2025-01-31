@@ -11,6 +11,12 @@
     <li *ngIf="isLoggedIn"><a routerLink="/upload">Upload</a></li>
     <li *ngIf="isLoggedIn"><a routerLink="/mydocuments">Documents</a></li>
 
+    <!-- Admin Panel: Kullanıcı admin (role === 1) ise göster -->
+    <li *ngIf="isLoggedIn && role === 1"><a routerLink="/admin-panel">Admin Panel</a></li>
+
+    <!-- Superadmin Panel: Kullanıcı süper admin (role === 2) ise göster -->
+    <li *ngIf="isLoggedIn && role === 2"><a routerLink="/superadmin-panel">Superadmin Panel</a></li>
+
     <!-- Kullanıcı giriş yapmışsa kullanıcı adını ve logout düğmesini göster -->
     <li *ngIf="isLoggedIn" class="username-display">
       Welcome, {{ username }}

@@ -1,0 +1,126 @@
+<app-sidebar-superadmin></app-sidebar-superadmin>
+
+<div class="explorer-container">
+  <!-- MinIO Browser Link -->
+  <div class="minio-link" *ngIf="minioBrowserUrl">
+    <a [href]="minioBrowserUrl" target="_blank">View in MinIO</a>
+  </div>
+
+  <h2>MinIO Dosya Gezgini</h2>
+
+  <!-- Bucket create/remove -->
+  <div class="bucket-actions">
+    <h4>Bucket Actions</h4>
+    <div>
+      <label>New Bucket Name:</label>
+      <input [(ngModel)]="newBucketName" placeholder="my-new-bucket" />
+      <button (click)="createBucket()">Create Bucket</button>
+    </div>
+    <div>
+      <label>Remove Bucket Name:</label>
+      <input [(ngModel)]="removeBucketName" placeholder="my-new-bucket" />
+      <button (click)="removeBucket()">Remove Bucket</button>
+    </div>
+  </div>
+
+  <hr />
+
+  <div class="controls">
+    <button (click)="goAllBuckets()">All Buckets</button>
+    <label>Search:</label>
+    <input [(ngModel)]="searchTerm" (keyup.enter)="fetchData()" placeholder="Arama" />
+    <label>Sort By:</label>
+    <select [(ngModel)]="sortBy" (change)="fetchData()">
+      <option value="name">Name</option>
+      <option value="size">Size</option>
+      <option value="date">Date</option>
+    </select>
+    <label>
+      <input type="checkbox" [(ngModel)]="recursive" (change)="fetchData()" />
+      Recursive
+    </label>
+
+    <button (click)="downloadSelected()">Download Selected</button>
+    <button (click)="deleteSelected()">Delete Selected</button>
+  </div>
+
+  <hr />
+
+  <!-- Bucket list -->
+  <div *ngIf="!isBucketList && bucketList.length">
+    <h3>Bucket List</h3>
+    <ul>
+      <li *ngFor="let b of bucketList" class="clickable" (click)="openBucket(b)">
+        <strong>📂 {{ b }}</strong>
+      </li>
+    </ul>
+  </div>
+
+  <!-- Dosya list -->
+  <div *ngIf="isBucketList && files.length">
+    <div class="path-info">
+      <strong>Bucket:</strong> {{ bucket }} |
+      <strong>Prefix:</strong> {{ prefix }}
+      <button (click)="goUp()">Go Up</button>
+    </div>
+
+    <table class="file-table">
+      <thead>
+        <tr>
+          <th></th>
+          <th>Name</th>
+          <th>Owner</th>
+          <th>Size</th>
+          <th>Last Modified</th>
+          <th>Type</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let f of files">
+          <td>
+            <input 
+              type="checkbox"
+              [disabled]="f.isDir"
+              (change)="toggleSelection(f, $event)"
+            />
+          </td>
+          <td>
+            <span *ngIf="f.isDir">📁</span>
+            <span *ngIf="!f.isDir">📄</span>
+            {{ f.name }}
+          </td>
+          <td>{{ f.ownerName }}</td>
+          <td>{{ f.size }}</td>
+          <td>{{ f.lastModified | date:'short' }}</td>
+          <td>{{ f.isDir ? 'Folder' : 'File' }}</td>
+          <td>
+            <button *ngIf="f.isDir" (click)="openFolder(f)">Open</button>
+            <button *ngIf="!f.isDir" (click)="showFileDetails(f)">Details</button>
+            <button *ngIf="!f.isDir" (click)="previewFile(f)">Preview</button>
+            <button *ngIf="!f.isDir" (click)="downloadFile(f)">Download</button>
+            <button (click)="deleteFile(f)">Delete</button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div *ngIf="isBucketList && !files.length">
+    <p>No files found.</p>
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="modal-backdrop" *ngIf="selectedFile">
+  <div class="modal-content">
+    <h3>File Details</h3>
+    <p><strong>Name:</strong> {{ selectedFile?.name }}</p>
+    <p><strong>OriginalName:</strong> {{ selectedFile?.originalName }}</p>
+    <p><strong>Owner:</strong> {{ selectedFile?.ownerName }}</p>
+    <p><strong>Size:</strong> {{ selectedFile?.size }}</p>
+    <p><strong>LastModified:</strong> {{ selectedFile?.lastModified | date:'short' }}</p>
+    <p><strong>Key:</strong> {{ selectedFile?.key }}</p>
+    <button (click)="closeModal()">Close</button>
+  </div>
+</div>

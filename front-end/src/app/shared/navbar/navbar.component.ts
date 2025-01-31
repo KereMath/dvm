@@ -13,46 +13,45 @@ import { HttpClient } from '@angular/common/http';
 export class NavbarComponent implements OnInit {
   isLoggedIn = false;
   username: string = '';
+  role: number | null = null;
   private backendPort: string | null = null;
 
-  constructor(private http: HttpClient, private router: Router) {
-    // İlk sefer portu çek
-    this.http.get('http://127.0.0.1:9999/env/GO_BACKEND_PORT', { responseType: 'text' })
-      .subscribe({
-        next: (portVal: string) => {
-          this.backendPort = portVal.trim();
-          this.updateUserState(); // İlk seferde port geldi => user info vs.
-        },
-        error: (err) => {
-          console.error('GO_BACKEND_PORT alınamadı => null', err);
-          this.backendPort = null;
-          // Yine de updateUserState => belki 401 vs.
-          this.updateUserState();
-        }
-      });
-
-    // Sonra her 1 saniyede yenile
-    setInterval(() => {
-      this.http.get('http://127.0.0.1:9999/env/GO_BACKEND_PORT', { responseType: 'text' })
-        .subscribe({
-          next: (portVal: string) => {
-            this.backendPort = portVal.trim();
-          },
-          error: (err) => {
-            console.error('GO_BACKEND_PORT alınamadı => null', err);
-            this.backendPort = null;
-          }
-        });
-    }, 1000);
-  }
+  constructor(private http: HttpClient, private router: Router) {}
 
   ngOnInit(): void {
+    // İlk başta portu çek ve kullanıcı bilgilerini güncelle
+    this.updateBackendPort().then(() => {
+      this.updateUserState();
+    });
+
     // Rota değişimlerinde user state yenile
     this.router.events.subscribe((event) => {
       if (event instanceof NavigationEnd) {
-        this.updateUserState();
+        this.updateBackendPort().then(() => {
+          this.updateUserState();
+        });
       }
     });
+
+    // Backend portunu sürekli güncelle (Her 5 saniyede bir)
+    setInterval(() => {
+      this.updateBackendPort();
+    }, 5000);
+  }
+
+  /**
+   * Backend portunu günceller (9999 numaralı env portundan çeker)
+   */
+  private async updateBackendPort(): Promise<void> {
+    try {
+      const portVal = await this.http
+        .get('http://127.0.0.1:9999/env/GO_BACKEND_PORT', { responseType: 'text' })
+        .toPromise();
+      this.backendPort = portVal?.trim() || null;
+    } catch (err) {
+      console.error('GO_BACKEND_PORT alınamadı => null', err);
+      this.backendPort = null;
+    }
   }
 
   updateUserState(): void {
@@ -62,10 +61,13 @@ export class NavbarComponent implements OnInit {
       this.getUserInfo();
     } else {
       this.username = '';
+      this.role = null;
     }
   }
 
-  getUserInfo(): void {
+  async getUserInfo(): Promise<void> {
+    await this.updateBackendPort(); // Her istekten önce backend portunu çek
+
     if (!this.backendPort) {
       console.error('No backendPort => cannot get user info.');
       return;
@@ -76,10 +78,13 @@ export class NavbarComponent implements OnInit {
     const headers = { Authorization: `Bearer ${token}` };
     const url = `http://localhost:${this.backendPort}/user`;
 
-    this.http.get<{ user: { username: string } }>(url, { headers })
+    this.http.get<{ username: string; role: number }>(url, { headers })
       .subscribe({
         next: (resp) => {
-          this.username = resp.user.username;
+          if (resp) {
+            this.username = resp.username;
+            this.role = resp.role;
+          }
         },
         error: (err) => {
           console.error('Error fetching user info:', err);
@@ -91,6 +96,7 @@ export class NavbarComponent implements OnInit {
     localStorage.removeItem('token');
     this.isLoggedIn = false;
     this.username = '';
+    this.role = null;
     this.router.navigate(['/login']);
   }
 }

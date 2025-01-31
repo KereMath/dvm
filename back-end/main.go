@@ -44,7 +44,15 @@ func main() {
     r.GET("/document-content/:docID", handlers.DocumentContentHandler(documentCollection))
     r.POST("/process-question", handlers.PipelineManagerHandler)
     r.GET("/user", handlers.GetUserHandler(userCollection))
-
+    r.GET("/superadmin/stats", handlers.SuperadminStatsHandler(userCollection, documentCollection))
+    r.GET("/superadmin/users", handlers.GetUsersHandler(userCollection))
+    r.POST("/superadmin/users", handlers.AddUserHandler(userCollection))
+    r.DELETE("/superadmin/users/:id", handlers.DeleteUserHandler(userCollection))
+	r.GET("/superadmin/minio/explorer", handlers.MinioExplorerHandler(userCollection, documentCollection))
+    r.GET("/superadmin/minio/download", handlers.DownloadObjectHandler())
+    r.POST("/superadmin/minio/delete", handlers.DeleteObjectHandler(documentCollection))
+    r.POST("/superadmin/minio/create-bucket", handlers.CreateBucketHandler())
+    r.POST("/superadmin/minio/remove-bucket", handlers.RemoveBucketHandler())
     // 3) Port parametresini kullan
     address := fmt.Sprintf(":%s", *portFlag)
     r.Run(address)

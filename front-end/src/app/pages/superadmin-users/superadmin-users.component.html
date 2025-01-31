@@ -1,0 +1,40 @@
+<app-sidebar-superadmin></app-sidebar-superadmin>
+
+<div class="user-management" style="margin-left:270px;">
+
+    <h2>Superadmin Kullanıcı Yönetimi</h2>
+  
+    <div class="add-user-form">
+      <input type="text" [(ngModel)]="username" placeholder="Kullanıcı Adı">
+      <input type="password" [(ngModel)]="password" placeholder="Şifre">
+      <select [(ngModel)]="role">
+        <option [value]="0">User</option>
+        <option [value]="1">Admin</option>
+        <option [value]="2">Superadmin</option>
+      </select>
+      <button (click)="addUser()">Kullanıcı Ekle</button>
+    </div>
+  
+    <h3>Mevcut Kullanıcılar</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Kullanıcı Adı</th>
+          <th>Rol</th>
+          <th>İşlemler</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let user of users">
+          <td>{{ user._id }}</td>
+          <td>{{ user.username }}</td>
+          <td>{{ user.role === 0 ? 'User' : user.role === 1 ? 'Admin' : 'SuperAdmin' }}</td>
+          <td>
+            <button (click)="deleteUser(user._id)">Sil</button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  
